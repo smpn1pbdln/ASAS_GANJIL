@@ -1638,6 +1638,7 @@
             }
         };
 
+        // MEMPERBAIKI FUNGSI SIMPAN PROFIL DAN LOGO KE SUPABASE
         window.simpanPengaturanProfil = async function(e) {
             e.preventDefault();
             window.globalSettings.logoKiri = document.getElementById('pr-logo-kiri').value;
@@ -1650,8 +1651,24 @@
             window.globalSettings.nipKasek = document.getElementById('pr-nip-kasek').value;
             
             localStorage.setItem('cbt_global_settings', JSON.stringify(window.globalSettings));
-            try { await getDb().from('settings').upsert([{ id: 'global', namasekolah: window.globalSettings.namaSekolah, alamatsekolah: window.globalSettings.alamatSekolah, namakasek: window.globalSettings.namaKasek, nipkasek: window.globalSettings.nipKasek }]); } catch(err){}
-            showNotification("Profil & KOP Sekolah Berhasil Diperbarui!"); updateAppHeaderTitles(); updateLogoDisplay();
+            try { 
+                await getDb().from('settings').upsert([{ 
+                    id: 'global', 
+                    logourl: window.globalSettings.logoUrl,
+                    logokiri: window.globalSettings.logoKiri,
+                    pemkab: window.globalSettings.pemkab,
+                    dinas: window.globalSettings.dinas,
+                    namasekolah: window.globalSettings.namaSekolah, 
+                    alamatsekolah: window.globalSettings.alamatSekolah, 
+                    namakasek: window.globalSettings.namaKasek, 
+                    nipkasek: window.globalSettings.nipKasek 
+                }]); 
+            } catch(err){
+                console.warn("Gagal simpan ke database:", err);
+            }
+            showNotification("Profil & KOP Sekolah Berhasil Diperbarui!"); 
+            updateAppHeaderTitles(); 
+            updateLogoDisplay();
         };
 
         window.simpanPengaturanKepanitiaan = async function(e) {
