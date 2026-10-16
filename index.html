@@ -9,14 +9,14 @@
     <meta name="theme-color" content="#0b0f19">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="icon" href="https://i.ibb.co.com/jPPDhpbP/Panesa-removebg-preview.png" type="image/png">
-    <link rel="apple-touch-icon" href="https://i.ibb.co.com/jPPDhpbP/Panesa-removebg-preview.png">
+    <link rel="icon" href="Panesa-removebg-preview.png" type="image/png">
+    <link rel="apple-touch-icon" href="Panesa-removebg-preview.png">
     <!-- Embedded PWA Manifest -->
     <link rel="manifest" href='data:application/manifest+json;charset=utf-8,%7B%22name%22%3A%22CBT%20PANESA%22%2C%22short_name%22%3A%22CBT%20Panesa%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23070913%22%2C%22theme_color%22%3A%22%236366f1%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22Panesa-removebg-preview.png%22%2C%22sizes%22%3A%22192x192%20512x512%22%2C%22type%22%3A%22image%2Fpng%22%7D%5D%7D'>
     
     <!-- LOGO SETTINGS -->
     <script>
-        window.PANESA_LOGO = "https://i.ibb.co.com/jPPDhpbP/Panesa-removebg-preview.png";
+        window.PANESA_LOGO = "Panesa-removebg-preview.png";
         window.KAB_CIREBON_LOGO = "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 240'%3E%3Cpath d='M100 10 L185 45 C185 160 100 225 100 225 C100 225 15 160 15 45 Z' fill='%2315803d' stroke='%23eab308' stroke-width='6' stroke-linejoin='round'/%3E%3Cpath d='M100 20 L173 51 C173 150 100 210 100 210 C100 210 27 150 27 51 Z' fill='%231e3a8a'/%3E%3Cpath d='M100 40 L160 70 L100 190 L40 70 Z' fill='%23f59e0b' stroke='%23ffffff' stroke-width='2'/%3E%3Ccircle cx='100' cy='105' r='30' fill='%230284c7' stroke='%23ffffff' stroke-width='3'/%3E%3Cpolygon points='100,80 107,95 123,96 110,107 115,123 100,113 85,123 90,107 77,96 93,95' fill='%23facc15'/%3E%3Cpath d='M35 180 Q100 160 165 180 L155 200 Q100 180 45 200 Z' fill='%23dc2626' stroke='%23ffffff' stroke-width='1.5'/%3E%3Ctext x='100' y='194' font-family='Arial, sans-serif' font-weight='900' font-size='11' fill='%23ffffff' text-anchor='middle'%3EKAB. CIREBON%3C/text%3E%3C/svg%3E";
     </script>
 
@@ -2101,21 +2101,39 @@
                 </div>
 
                 <form id="siswa-login-form" onsubmit="window.handleSiswaLogin(event)" class="space-y-4 text-left">
-                    <div><label class="block text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-widest pl-1"><i class="fa-solid fa-id-card text-indigo-400 mr-1.5"></i> Username / NIS</label><input type="text" id="siswa-nomor" required class="w-full px-4 py-3.5 rounded-xl glass-input text-sm font-mono tracking-widest placeholder-slate-600" placeholder="Ketik username Anda..."></div>
-                    <div><label class="block text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-widest pl-1"><i class="fa-solid fa-key text-indigo-400 mr-1.5"></i> Password</label><input type="password" id="siswa-password" required class="w-full px-4 py-3.5 rounded-xl glass-input text-sm font-mono tracking-widest placeholder-slate-600" placeholder="Password dari Kartu"></div>
+                    <div><label class="block text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-widest pl-1"><i class="fa-solid fa-id-card text-indigo-400 mr-1.5"></i> Username</label><input type="text" id="siswa-nomor" required class="w-full px-4 py-3.5 rounded-xl glass-input text-sm font-mono tracking-widest placeholder-slate-600" placeholder="Ketik username Anda..."></div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-widest pl-1"><i class="fa-solid fa-key text-indigo-400 mr-1.5"></i> Password</label>
+                        <div class="relative">
+                            <input type="password" id="siswa-password" required class="w-full px-4 py-3.5 rounded-xl glass-input text-sm font-mono tracking-widest placeholder-slate-600 pr-12" placeholder="Password dari Kartu">
+                            <button type="button" onclick="window.togglePassword('siswa-password', this)" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-400 transition" title="Tampilkan Password"><i class="fa-solid fa-eye"></i></button>
+                        </div>
+                    </div>
                     <div class="pt-2"><button type="submit" class="w-full py-4 gradient-btn text-white font-black rounded-xl text-[11px] uppercase tracking-[0.15em] shadow-xl shadow-indigo-600/30 flex items-center justify-center space-x-2"><span>Masuk Ujian</span> <i class="fa-solid fa-arrow-right"></i></button><div class="mt-4 text-center text-[10px] text-slate-500 font-medium tracking-widest lowercase">&copy; 2026 copyright: <span class="font-bold text-indigo-400">@Tim IT Panesa</span></div></div>
                 </form>
 
                 <form id="pengawas-login-form" onsubmit="window.handlePengawasLogin(event)" class="space-y-4 text-left hidden">
                     <div><label class="block text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-widest pl-1"><i class="fa-solid fa-user-tie text-emerald-400 mr-1.5"></i> Nama Pengawas</label><input type="text" id="pengawas-nama" required placeholder="Nama Lengkap & Gelar" class="w-full px-4 py-3.5 rounded-xl glass-input text-sm"></div>
-                    <div><label class="block text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-widest pl-1"><i class="fa-solid fa-door-open text-emerald-400 mr-1.5"></i> Ruang Ujian</label><select id="pengawas-ruang" required class="w-full px-4 py-3.5 rounded-xl glass-input text-sm bg-slate-900 cursor-pointer"></select></div>
-                    <div><label class="block text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-widest pl-1"><i class="fa-solid fa-lock text-emerald-400 mr-1.5"></i> Password Akses</label><input type="password" id="pengawas-password" required placeholder="••••••••" class="w-full px-4 py-3.5 rounded-xl glass-input text-sm font-mono tracking-widest"></div>
+                    <div><label class="block text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-widest pl-1"><i class="fa-solid fa-door-open text-emerald-400 mr-1.5"></i> Ruang Ujian</label><select id="pengawas-ruang" required class="w-full px-4 py-3.5 rounded-xl glass-input text-sm bg-slate-900 cursor-pointer"><option value="">-- Pilih Ruang --</option></select></div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-widest pl-1"><i class="fa-solid fa-lock text-emerald-400 mr-1.5"></i> Password Akses</label>
+                        <div class="relative">
+                            <input type="password" id="pengawas-password" required placeholder="••••••••" class="w-full px-4 py-3.5 rounded-xl glass-input text-sm font-mono tracking-widest pr-12">
+                            <button type="button" onclick="window.togglePassword('pengawas-password', this)" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-400 transition" title="Tampilkan Password"><i class="fa-solid fa-eye"></i></button>
+                        </div>
+                    </div>
                     <div class="pt-2"><button type="submit" class="w-full py-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black rounded-xl text-[11px] uppercase tracking-[0.15em] shadow-xl shadow-emerald-600/30 transition flex items-center justify-center space-x-2"><span>Masuk Dasbor</span> <i class="fa-solid fa-arrow-right"></i></button><div class="mt-4 text-center text-[10px] text-slate-500 font-medium tracking-widest lowercase">&copy; 2026 copyright: <span class="font-bold text-indigo-400">@Tim IT Panesa</span></div></div>
                 </form>
 
                 <form id="admin-login-form" onsubmit="window.handleAdminLogin(event)" class="space-y-4 text-left hidden">
                     <div><label class="block text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-widest pl-1"><i class="fa-solid fa-user-shield text-pink-400 mr-1.5"></i> Admin Username</label><input type="text" id="admin-username" required placeholder="admin" class="w-full px-4 py-3.5 rounded-xl glass-input text-sm font-mono"></div>
-                    <div><label class="block text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-widest pl-1"><i class="fa-solid fa-key text-pink-400 mr-1.5"></i> Admin Password</label><input type="password" id="admin-password" required placeholder="••••••••" class="w-full px-4 py-3.5 rounded-xl glass-input text-sm font-mono tracking-widest"></div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-widest pl-1"><i class="fa-solid fa-key text-pink-400 mr-1.5"></i> Admin Password</label>
+                        <div class="relative">
+                            <input type="password" id="admin-password" required placeholder="••••••••" class="w-full px-4 py-3.5 rounded-xl glass-input text-sm font-mono tracking-widest pr-12">
+                            <button type="button" onclick="window.togglePassword('admin-password', this)" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-pink-400 transition" title="Tampilkan Password"><i class="fa-solid fa-eye"></i></button>
+                        </div>
+                    </div>
                     <div class="pt-2"><button type="submit" class="w-full py-4 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-black rounded-xl text-[11px] uppercase tracking-[0.15em] shadow-xl shadow-pink-600/30 transition flex items-center justify-center space-x-2"><span>Akses Sistem</span> <i class="fa-solid fa-lock-open"></i></button><div class="mt-4 text-center text-[10px] text-slate-500 font-medium tracking-widest lowercase">&copy; 2026 copyright: <span class="font-bold text-indigo-400">@Tim IT Panesa</span></div></div>
                 </form>
             </div>
