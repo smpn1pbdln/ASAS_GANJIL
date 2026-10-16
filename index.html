@@ -1267,7 +1267,17 @@
 
         window.simpanPeserta = async function(e) {
             e.preventDefault(); const username = document.getElementById('p-username').value.trim(); const nama = document.getElementById('p-nama').value.trim(); const tingkat = document.getElementById('p-tingkat').value; const kelas = document.getElementById('p-kelas').value.trim().toUpperCase(); const password = document.getElementById('p-password').value.trim() || window.generateRandomToken();
-            try { await getDb().from('peserta').insert([{ username, nama, tingkat, kelas, password, status_blokir: 'AKTIF' }]); showNotification('Siswa berhasil ditambahkan!'); document.getElementById('app-modal').classList.add('hidden'); window.loadDatabasePeserta(window.currentFilterTingkat); } catch(err) { showNotification('Gagal: ' + err.message); }
+            try { await getDb().from('peserta').insert([{ username, nama, tingkat, kelas, password, status_blokir: 'AKTIF' }]); showNotification('Siswa berhasil ditambahkan!'); document.getElementById('app-modal').classList.add('hidden'); window.loadDatabasePeserta(window.currentFilterTingkat, true); } catch(err) { showNotification('Gagal: ' + err.message); }
+        };
+
+        window.exportDataSiswaExcel = function() {
+            let dataExport = window.appData.peserta || [];
+            if(dataExport.length === 0) { showNotification("Tidak ada data untuk diekspor!"); return; }
+            dataExport.sort((a, b) => { const kA = a.kelas || ''; const kB = b.kelas || ''; return kA === kB ? (a.nama || '').localeCompare(b.nama || '') : kA.localeCompare(kB); });
+            const excelData = dataExport.map((s, idx) => ({
+                "No": idx + 1, "Username": s.username, "Nama Lengkap": s.nama, "Tingkat": s.tingkat, "Kelas": s.kelas, "Password": s.password, "Status": s.status_blokir || 'AKTIF'
+            }));
+            const ws = XLSX.utils.json_to_sheet(excelData); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Data_Peserta"); XLSX.writeFile(wb, "Data_Peserta_CBT.xlsx");
         };
 
         window.downloadExcelTemplatePeserta = function() {
@@ -1281,11 +1291,36 @@
                 try {
                     const data = new Uint8Array(evt.target.result); const workbook = XLSX.read(data, {type: 'array'}); const sheet = workbook.Sheets[workbook.SheetNames[0]]; const rows = XLSX.utils.sheet_to_json(sheet);
                     if(rows.length === 0) { showNotification("File Excel kosong!"); return; }
-                    showNotification(`Memproses import ${rows.length} siswa...`);
-                    for(let r of rows) { await getDb().from('peserta').insert([{ username: String(r.username), nama: String(r.nama), tingkat: String(r.tingkat||'7'), kelas: String(r.kelas), password: String(r.password||window.generateRandomToken()), status_blokir: 'AKTIF' }]); }
-                    showNotification("Import Siswa Berhasil!"); window.loadDatabasePeserta(window.currentFilterTingkat);
-                } catch(err) { showNotification("Gagal import data siswa!"); }
-            }; reader.readAsArrayBuffer(file);
+                    showNotification(`Memproses import ${rows.length} siswa secara massal...`);
+                    
+                    const batchSize = 200; // Membagi data per 200 siswa agar server tidak menolak
+                    let successCount = 0;
+
+                    for (let i = 0; i < rows.length; i += batchSize) {
+                        const chunk = rows.slice(i, i + batchSize);
+                        const insertData = chunk.map(r => ({
+                            username: String(r.username).trim(),
+                            nama: String(r.nama),
+                            tingkat: String(r.tingkat||'7'),
+                            kelas: String(r.kelas).toUpperCase(),
+                            password: String(r.password||window.generateRandomToken()),
+                            status_blokir: 'AKTIF'
+                        })).filter(r => r.username && r.username !== 'undefined');
+
+                        if(insertData.length > 0) {
+                            // Menggunakan upsert agar baris duplikat/sudah ada tertimpa, tidak membuat error semua
+                            const { error } = await getDb().from('peserta').upsert(insertData, { onConflict: 'username' });
+                            if(!error) successCount += insertData.length;
+                            else console.error("Batch error:", error);
+                        }
+                    }
+                    
+                    showNotification(`Import Selesai! ${successCount} siswa berhasil diproses.`); 
+                    window.loadDatabasePeserta(window.currentFilterTingkat, true); // True = Langsung muncul tanpa refresh
+                } catch(err) { showNotification("Gagal import data siswa! Periksa format Excel."); }
+            }; 
+            reader.readAsArrayBuffer(file);
+            e.target.value = ''; // Reset input file agar file yang sama bisa diimport 2x
         };
 
         window.generatePasswordPeserta = function() {
@@ -1449,26 +1484,38 @@
         window.loadKartuUjian = function() {
             window.currentRoute = 'kartu'; const container = document.getElementById('content-container');
             container.innerHTML = `
-                <div class="mb-8"><div><h1 class="text-2xl md:text-3xl font-black text-white font-heading">Cetak Kartu Peserta Ujian</h1><p class="text-xs text-slate-400 mt-1">Cetak Kartu Login CBT Seluruh Siswa Lengkap dengan Logo & Password</p></div></div>
+                <div class="mb-8"><div><h1 class="text-2xl md:text-3xl font-black text-white font-heading">Cetak Kartu Peserta Ujian</h1><p class="text-xs text-slate-400 mt-1">Cetak Kartu Login CBT Seluruh Siswa (Otomatis 8 Kartu / Lembar A4)</p></div></div>
                 <div class="glass-card-dark p-6 md:p-8 rounded-3xl border border-slate-800 space-y-5 max-w-2xl shadow-xl">
                     <h3 class="text-sm font-bold text-white border-b border-slate-800 pb-2"><i class="fa-solid fa-sliders text-indigo-400 mr-2"></i> Pengaturan Format Kartu</h3>
                     <div><label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">Pilih Tingkat Siswa</label><select id="kt-tingkat" class="w-full p-3 glass-input rounded-xl text-xs bg-slate-900"><option value="semua">Semua Kelas</option><option value="7">Kelas 7</option><option value="8">Kelas 8</option><option value="9">Kelas 9</option></select></div>
                     
                     <div class="grid grid-cols-4 gap-3">
                         <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Judul Kartu</label><input type="text" id="kt-judul" value="KARTU PESERTA UJIAN" class="w-full p-3 glass-input rounded-xl text-xs"></div>
-                        <div class="col-span-1"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Ukuran (px)</label><input type="number" id="kt-fs-judul" value="22" class="w-full p-3 glass-input rounded-xl text-xs"></div>
+                        <div class="col-span-1"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Ukuran (px)</label><input type="number" id="kt-fs-judul" value="16" class="w-full p-3 glass-input rounded-xl text-xs"></div>
                     </div>
                     <div class="grid grid-cols-4 gap-3">
                         <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nama Kegiatan</label><input type="text" id="kt-kegiatan" value="ASESMEN SUMATIF AKHIR SEMESTER (ASAS)" class="w-full p-3 glass-input rounded-xl text-xs"></div>
-                        <div class="col-span-1"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Ukuran (px)</label><input type="number" id="kt-fs-kegiatan" value="16" class="w-full p-3 glass-input rounded-xl text-xs"></div>
+                        <div class="col-span-1"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Ukuran (px)</label><input type="number" id="kt-fs-kegiatan" value="11" class="w-full p-3 glass-input rounded-xl text-xs"></div>
                     </div>
                     <div class="grid grid-cols-4 gap-3">
                         <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nama Sekolah</label><input type="text" id="kt-sekolah" value="${window.globalSettings.namaSekolah}" class="w-full p-3 glass-input rounded-xl text-xs"></div>
-                        <div class="col-span-1"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Ukuran (px)</label><input type="number" id="kt-fs-sekolah" value="20" class="w-full p-3 glass-input rounded-xl text-xs"></div>
+                        <div class="col-span-1"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Ukuran (px)</label><input type="number" id="kt-fs-sekolah" value="14" class="w-full p-3 glass-input rounded-xl text-xs"></div>
                     </div>
                     <div class="grid grid-cols-4 gap-3">
                         <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Tahun Pelajaran (Tapel)</label><input type="text" id="kt-tapel" value="TAHUN PELAJARAN ${window.globalSettings.tahunPelajaran || '2026/2027'}" class="w-full p-3 glass-input rounded-xl text-xs"></div>
-                        <div class="col-span-1"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Ukuran (px)</label><input type="number" id="kt-fs-tapel" value="15" class="w-full p-3 glass-input rounded-xl text-xs"></div>
+                        <div class="col-span-1"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Ukuran (px)</label><input type="number" id="kt-fs-tapel" value="10" class="w-full p-3 glass-input rounded-xl text-xs"></div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-800 pt-4">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Jarak Spasi Vertikal (px)</label>
+                            <input type="number" id="kt-spasi" value="12" class="w-full p-3 glass-input rounded-xl text-xs" title="Mengatur ruang kosong di dalam kartu (batas atas/bawah)">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Tanda Tangan Kepsek</label>
+                            <input type="file" id="kt-ttd-upload" accept="image/*" onchange="window.handleUploadTTDKepsek(event)" class="w-full text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer transition">
+                            <input type="hidden" id="kt-ttd-base64" value="">
+                        </div>
                     </div>
                     
                     <button onclick="window.cetakKartuUjianView()" class="w-full py-4 mt-2 gradient-btn text-white font-bold rounded-xl text-xs uppercase tracking-wider shadow-lg transition hover:shadow-xl"><i class="fa-solid fa-print mr-2"></i> Cetak Kartu Peserta (PDF)</button>
@@ -1476,16 +1523,27 @@
             `;
         };
 
+        window.handleUploadTTDKepsek = function(e) {
+            const file = e.target.files[0];
+            if(file) {
+                const reader = new FileReader();
+                reader.onload = (evt) => { document.getElementById('kt-ttd-base64').value = evt.target.result; };
+                reader.readAsDataURL(file);
+            }
+        };
+
         window.cetakKartuUjianView = async function() {
             const tk = document.getElementById('kt-tingkat').value;
             const judul = document.getElementById('kt-judul').value;
-            const fsJudul = document.getElementById('kt-fs-judul').value || 22;
+            const fsJudul = document.getElementById('kt-fs-judul').value || 16;
             const kegiatan = document.getElementById('kt-kegiatan').value;
-            const fsKegiatan = document.getElementById('kt-fs-kegiatan').value || 16;
+            const fsKegiatan = document.getElementById('kt-fs-kegiatan').value || 11;
             const sekolah = document.getElementById('kt-sekolah').value;
-            const fsSekolah = document.getElementById('kt-fs-sekolah').value || 20;
+            const fsSekolah = document.getElementById('kt-fs-sekolah').value || 14;
             const tapel = document.getElementById('kt-tapel').value;
-            const fsTapel = document.getElementById('kt-fs-tapel').value || 15;
+            const fsTapel = document.getElementById('kt-fs-tapel').value || 10;
+            const spasiVertikal = document.getElementById('kt-spasi').value || 12;
+            const ttdBase64 = document.getElementById('kt-ttd-base64').value;
 
             let listSiswa = window.appData.peserta;
             if (!listSiswa || listSiswa.length === 0) { try { const { data } = await getDb().from('peserta').select('*'); listSiswa = data || []; window.appData.peserta = listSiswa; } catch(e) {} }
@@ -1493,43 +1551,71 @@
 
             listSiswa.sort((a, b) => { const kA = a.kelas || ''; const kB = b.kelas || ''; return kA === kB ? (a.nama || '').localeCompare(b.nama || '') : kA.localeCompare(kB); });
 
-            const printWindow = window.open('', '_blank'); let cardsHtml = '';
-            if (listSiswa.length === 0) { cardsHtml = `<div style="text-align:center; padding:20px;">Belum ada data siswa untuk kategori ini.</div>`; } 
-            else {
-                listSiswa.forEach(s => {
-                    cardsHtml += `
-                        <div class="card" style="border: 6px double #000; border-radius: 12px; padding: 15px; box-sizing: border-box; page-break-inside: avoid; display: flex; flex-direction: column; justify-content: space-between; height: 280px; background: #fff; position: relative;">
-                            <div>
-                                <div class="header" style="display: flex; align-items: center; justify-content: center; border-bottom: 3px double #000; padding-bottom: 12px; margin-bottom: 15px; text-align: center; position: relative;">
-                                    <img src="${window.globalSettings.logoUrl||window.PANESA_LOGO}" style="width: 60px; height: 60px; position: absolute; left: 0; top: 0; object-fit: contain;">
-                                    <div style="flex: 1; padding-left: 65px;">
-                                        <div style="font-size: ${fsJudul}px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; color: #000; line-height: 1.1;">${judul}</div>
-                                        <div style="font-size: ${fsKegiatan}px; font-weight: bold; text-transform: uppercase; margin: 6px 0; color: #333; line-height: 1.1;">${kegiatan}</div>
-                                        <div style="font-size: ${fsSekolah}px; font-weight: 900; text-transform: uppercase; color: #1e3a8a; line-height: 1.1;">${sekolah}</div>
-                                        <div style="font-size: ${fsTapel}px; font-weight: bold; color: #000; margin-top: 4px; line-height: 1.1;">${tapel}</div>
+            const printWindow = window.open('', '_blank'); 
+            let pagesHtml = '';
+            
+            if (listSiswa.length === 0) { 
+                pagesHtml = `<div style="text-align:center; padding:20px;">Belum ada data siswa untuk kategori ini.</div>`; 
+            } else {
+                for (let i = 0; i < listSiswa.length; i += 8) {
+                    const chunk = listSiswa.slice(i, i + 8);
+                    let gridHtml = '';
+                    chunk.forEach(s => {
+                        const ttdImg = ttdBase64 ? `<img src="${ttdBase64}" style="height:35px; margin:-5px 0; object-fit:contain; z-index:-1; position:relative;">` : `<div style="height:35px;"></div>`;
+                        gridHtml += `
+                            <div class="card" style="padding: ${spasiVertikal}px 12px;">
+                                <div class="header" style="display: flex; align-items: center; justify-content: center; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 8px; text-align: center; position: relative;">
+                                    <img src="${window.globalSettings.logoUrl||window.PANESA_LOGO}" style="width: 45px; height: 45px; position: absolute; left: 0; top: 0; object-fit: contain;">
+                                    <div style="flex: 1; padding-left: 50px;">
+                                        <div style="font-size: ${fsJudul}px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; color: #000; line-height: 1;">${judul}</div>
+                                        <div style="font-size: ${fsKegiatan}px; font-weight: bold; text-transform: uppercase; margin: 4px 0; color: #333; line-height: 1;">${kegiatan}</div>
+                                        <div style="font-size: ${fsSekolah}px; font-weight: 900; text-transform: uppercase; color: #000; line-height: 1;">${sekolah}</div>
+                                        <div style="font-size: ${fsTapel}px; font-weight: bold; color: #333; margin-top: 3px; line-height: 1;">${tapel}</div>
                                     </div>
                                 </div>
-                                <table style="width:100%; border-collapse:collapse; color: #000;">
-                                    <tr><td width="35%" style="padding: 5px 0; font-size: 15px;"><b>Username</b></td><td width="5%" style="font-size: 15px;">:</td><td style="font-family:monospace; font-weight:bold; font-size:18px; color:#000;">${s.username}</td></tr>
-                                    <tr><td style="padding: 5px 0; font-size: 15px;"><b>Nama Siswa</b></td><td style="font-size: 15px;">:</td><td style="font-size:17px; color:#000;"><b>${s.nama}</b></td></tr>
-                                    <tr><td style="padding: 5px 0; font-size: 15px;"><b>Kelas</b></td><td style="font-size: 15px;">:</td><td style="font-size:17px; font-weight:bold; color:#000;">${s.kelas}</td></tr>
-                                    <tr><td style="padding: 5px 0; font-size: 15px;"><b>Password</b></td><td style="font-size: 15px;">:</td><td style="font-family:monospace; font-weight:bold; font-size:18px; color:#000;">${s.password||'123456'}</td></tr>
+                                <table style="width:100%; border-collapse:collapse; color: #000; font-size:11px;">
+                                    <tr><td width="30%" style="padding: 2px 0;"><b>Username</b></td><td width="5%">:</td><td style="font-family:monospace; font-weight:bold; font-size:13px;">${s.username}</td></tr>
+                                    <tr><td style="padding: 2px 0;"><b>Nama Siswa</b></td><td>:</td><td style="font-size:12px;"><b>${s.nama}</b></td></tr>
+                                    <tr><td style="padding: 2px 0;"><b>Kelas</b></td><td>:</td><td style="font-size:12px; font-weight:bold;">${s.kelas}</td></tr>
+                                    <tr><td style="padding: 2px 0;"><b>Password</b></td><td>:</td><td style="font-family:monospace; font-weight:bold; font-size:13px;">${s.password||'123456'}</td></tr>
                                 </table>
+                                <div style="display:flex; justify-content:space-between; align-items:flex-end; border-top:1px dashed #000; padding-top:6px; margin-top: auto;">
+                                    <div style="width:45%; font-size:9px; font-weight:bold; color:#000; line-height:1.2;">Catatan:<br>Kartu wajib dibawa saat ujian berlangsung.</div>
+                                    <div style="width:55%; text-align:center; font-size:10px; line-height:1;">Pabedilan, ${formatTanggalIndo(new Date())}<br>Kepala Sekolah,<br>${ttdImg}<br><u><b>${window.globalSettings.namaKasek || 'Kepala Sekolah, M.Pd.'}</b></u><br>NIP. ${window.globalSettings.nipKasek || '-'}</div>
+                                </div>
                             </div>
-                            <div style="display:flex; justify-content:space-between; align-items:flex-end; border-top:1px dashed #000; padding-top:10px; margin-top: auto;">
-                                <div style="width:48%; font-size:12px; font-weight:bold; color:#dc2626; line-height:1.4;">Catatan:<br>Kartu peserta WAJIB dibawa saat ujian berlangsung.</div>
-                                <div style="width:52%; text-align:center; font-size:13px; line-height:1.2; color:#000;">Pabedilan, 28 November 2026<br>Kepala Sekolah,<br><div style="height:45px;"></div><u><b>${window.globalSettings.namaKasek || 'Kepala Sekolah, M.Pd.'}</b></u><br>NIP. ${window.globalSettings.nipKasek || '196501011988031005'}</div>
-                            </div>
-                        </div>
-                    `;
-                });
+                        `;
+                    });
+                    pagesHtml += `<div class="page-container">${gridHtml}</div>`;
+                }
             }
 
             printWindow.document.write(`<html><head><title>Kartu Peserta CBT</title><style>
-                @page { size: A4; margin: 12mm; }
-                body { font-family: Arial, sans-serif; padding: 0; margin: 0; color: #000; }
-                .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-            </style></head><body><div class="grid">${cardsHtml}</div><script>window.print();<\/script></body></html>`);
+                @page { size: A4; margin: 10mm; }
+                body { font-family: Arial, sans-serif; padding: 0; margin: 0; color: #000; background: #fff; }
+                .page-container { 
+                    display: grid; 
+                    grid-template-columns: 1fr 1fr; 
+                    grid-template-rows: repeat(4, 1fr); 
+                    gap: 8mm 6mm; 
+                    height: 277mm; 
+                    box-sizing: border-box;
+                    page-break-after: always;
+                }
+                .card { 
+                    border: 2px solid #000; 
+                    border-radius: 8px; 
+                    box-sizing: border-box; 
+                    display: flex; 
+                    flex-direction: column; 
+                    background: #fff;
+                    overflow: hidden;
+                }
+                @media print {
+                    html, body { width: 210mm; height: 297mm; }
+                    .page-container:last-child { page-break-after: avoid; }
+                }
+            </style></head><body>${pagesHtml}<script>window.print();<\/script></body></html>`);
             printWindow.document.close();
         };
 
