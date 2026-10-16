@@ -588,10 +588,10 @@
                 </div>
 
                 <div class="flex gap-2 mb-6 text-xs font-bold overflow-x-auto pb-2">
-                    <button onclick="window.currentPageSoal=1; window.loadManajemenSoal('semua')" class="px-4 py-2 rounded-xl transition shrink-0 ${filterTingkat === 'semua' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}">Semua</button>
-                    <button onclick="window.currentPageSoal=1; window.loadManajemenSoal('7')" class="px-4 py-2 rounded-xl transition shrink-0 ${filterTingkat === '7' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}">Kelas 7</button>
-                    <button onclick="window.currentPageSoal=1; window.loadManajemenSoal('8')" class="px-4 py-2 rounded-xl transition shrink-0 ${filterTingkat === '8' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}">Kelas 8</button>
-                    <button onclick="window.currentPageSoal=1; window.loadManajemenSoal('9')" class="px-4 py-2 rounded-xl transition shrink-0 ${filterTingkat === '9' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}">Kelas 9</button>
+                    <button onclick="window.loadManajemenSoal('semua')" class="px-4 py-2 rounded-xl transition shrink-0 ${filterTingkat === 'semua' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}">Semua</button>
+                    <button onclick="window.loadManajemenSoal('7')" class="px-4 py-2 rounded-xl transition shrink-0 ${filterTingkat === '7' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}">Kelas 7</button>
+                    <button onclick="window.loadManajemenSoal('8')" class="px-4 py-2 rounded-xl transition shrink-0 ${filterTingkat === '8' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}">Kelas 8</button>
+                    <button onclick="window.loadManajemenSoal('9')" class="px-4 py-2 rounded-xl transition shrink-0 ${filterTingkat === '9' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}">Kelas 9</button>
                 </div>
             `;
 
@@ -607,22 +607,8 @@
                     </div>
                 `;
             } else {
-                // --- LOGIKA PAGINATION ---
-                const totalItems = soalData.length;
-                const totalPages = Math.ceil(totalItems / window.itemsPerPageSoal);
-                if (window.currentPageSoal > totalPages) window.currentPageSoal = totalPages;
-                if (window.currentPageSoal < 1) window.currentPageSoal = 1;
-                
-                const startIdx = (window.currentPageSoal - 1) * window.itemsPerPageSoal;
-                const endIdx = startIdx + window.itemsPerPageSoal;
-                const paginatedData = soalData.slice(startIdx, endIdx);
-
-                html += `<div class="space-y-4 mb-4">`;
-                paginatedData.forEach((s, idx) => {
-                    // Modifikasi lazy loading pada gambar pertanyaan
-                    let pertanyaanLazy = (s.pertanyaan || '').replace(/<img /g, '<img loading="lazy" ');
-                    let nomorUrut = startIdx + idx + 1;
-                    
+                html += `<div class="space-y-4">`;
+                soalData.forEach((s, idx) => {
                     html += `
                         <div class="glass-card-dark p-5 rounded-2xl border border-slate-800 relative group">
                             <div class="flex justify-between items-start gap-3 mb-2">
@@ -632,7 +618,7 @@
                                     <button onclick="window.hapusSoal('${s.id}')" class="text-red-400 hover:text-red-300 text-xs p-1.5 hover:bg-red-500/20 rounded-lg transition" title="Hapus Soal"><i class="fa-solid fa-trash"></i></button>
                                 </div>
                             </div>
-                            <div class="text-sm text-slate-200 font-semibold mb-3 flex gap-2"><span>${nomorUrut}.</span> <div class="overflow-x-auto">${pertanyaanLazy}</div></div>
+                            <p class="text-sm text-slate-200 font-semibold mb-3">${idx+1}. ${s.pertanyaan}</p>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
                                 <div class="p-2 rounded-xl ${s.kunci==='A'?'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300':'bg-slate-900/50 text-slate-400'}">A. ${s.pilihan_a}</div>
                                 <div class="p-2 rounded-xl ${s.kunci==='B'?'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300':'bg-slate-900/50 text-slate-400'}">B. ${s.pilihan_b}</div>
@@ -643,17 +629,6 @@
                     `;
                 });
                 html += `</div>`;
-
-                // --- TOMBOL PAGINATION BAWAH ---
-                if(totalPages > 1) {
-                    html += `
-                        <div class="flex justify-between items-center bg-slate-900/80 p-3 rounded-2xl border border-slate-800 text-xs mt-4">
-                            <button onclick="window.ubahHalamanSoal(-1)" ${window.currentPageSoal === 1 ? 'disabled' : ''} class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold rounded-xl transition">Sebelumnya</button>
-                            <span class="text-slate-300 font-bold text-center">Hal ${window.currentPageSoal} / ${totalPages} <br class="md:hidden"><span class="text-[10px] text-slate-500">(${totalItems} Soal)</span></span>
-                            <button onclick="window.ubahHalamanSoal(1)" ${window.currentPageSoal === totalPages ? 'disabled' : ''} class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold rounded-xl transition">Selanjutnya</button>
-                        </div>
-                    `;
-                }
             }
             container.innerHTML = html;
         };
