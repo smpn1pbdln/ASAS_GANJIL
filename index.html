@@ -573,6 +573,9 @@
         window.renderSoalUI = function(soalData, filterTingkat, isLoading) {
             const container = document.getElementById('content-container');
             if (!container) return;
+            
+            window.currentFilterMapel = window.currentFilterMapel || 'semua';
+            
             let html = `
                 <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
@@ -582,59 +585,104 @@
                     <div class="flex gap-2 flex-wrap">
                         <button onclick="window.openNewSoalModal()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs uppercase shadow-md"><i class="fa-solid fa-plus mr-1"></i> Tambah Soal</button>
                         <button onclick="window.downloadExcelTemplateSoal()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs uppercase shadow-md">📥 Template</button>
-                        <button onclick="document.getElementById('excel-soal-input').click()" class="px-4 py-2.5 gradient-btn text-white font-bold rounded-xl text-xs uppercase shadow-lg">📚 Import (Excel/JSON)</button>
-                        <input type="file" id="excel-soal-input" accept=".xlsx, .xls, .json" class="hidden" onchange="window.handleExcelImportSoal(event)">
+                        <button onclick="document.getElementById('excel-soal-input').click()" class="px-4 py-2.5 gradient-btn text-white font-bold rounded-xl text-xs uppercase shadow-lg">📚 Import</button>
+                        <input type="file" id="excel-soal-input" accept=".xlsx, .xls" class="hidden" onchange="window.handleExcelImportSoal(event)">
                     </div>
                 </div>
 
                 <div class="flex gap-2 mb-6 text-xs font-bold overflow-x-auto pb-2">
-                    <button onclick="window.loadManajemenSoal('semua')" class="px-4 py-2 rounded-xl transition shrink-0 ${filterTingkat === 'semua' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}">Semua</button>
-                    <button onclick="window.loadManajemenSoal('7')" class="px-4 py-2 rounded-xl transition shrink-0 ${filterTingkat === '7' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}">Kelas 7</button>
-                    <button onclick="window.loadManajemenSoal('8')" class="px-4 py-2 rounded-xl transition shrink-0 ${filterTingkat === '8' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}">Kelas 8</button>
-                    <button onclick="window.loadManajemenSoal('9')" class="px-4 py-2 rounded-xl transition shrink-0 ${filterTingkat === '9' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}">Kelas 9</button>
+                    <button onclick="window.loadManajemenSoal('semua', false, 'semua')" class="px-4 py-2 rounded-xl transition shrink-0 ${filterTingkat === 'semua' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}">Semua Kelas</button>
+                    <button onclick="window.loadManajemenSoal('7', false, 'semua')" class="px-4 py-2 rounded-xl transition shrink-0 ${filterTingkat === '7' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}">Kelas 7</button>
+                    <button onclick="window.loadManajemenSoal('8', false, 'semua')" class="px-4 py-2 rounded-xl transition shrink-0 ${filterTingkat === '8' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}">Kelas 8</button>
+                    <button onclick="window.loadManajemenSoal('9', false, 'semua')" class="px-4 py-2 rounded-xl transition shrink-0 ${filterTingkat === '9' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}">Kelas 9</button>
                 </div>
             `;
 
             if (isLoading) {
                 html += `<div class="text-center py-12 text-indigo-400"><i class="fa-solid fa-spinner fa-spin text-3xl mb-3"></i><p class="text-xs font-bold">Memuat Bank Soal...</p></div>`;
-            } else if (soalData.length === 0) {
-                html += `
-                    <div class="glass-card-dark p-8 rounded-2xl text-center space-y-3">
-                        <div class="text-slate-400 font-medium text-xs">Belum ada soal untuk kategori ini.</div>
-                        <button onclick="window.loadManajemenSoal('${filterTingkat}', true)" class="px-4 py-2 bg-indigo-600/30 border border-indigo-500/50 hover:bg-indigo-600/50 text-indigo-200 rounded-xl text-xs font-bold transition">
-                            <i class="fa-solid fa-arrows-rotate mr-1"></i> Muat Ulang Data Soal
-                        </button>
-                    </div>
-                `;
-            } else {
-                html += `<div class="space-y-4">`;
-                soalData.forEach((s, idx) => {
+            } else if (window.currentFilterMapel === 'semua') {
+                // Tampilan Folder Mapel
+                html += `<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">`;
+                window.listMapel.forEach(mapel => {
+                    let count = soalData.filter(s => s.mapel === mapel).length;
                     html += `
-                        <div class="glass-card-dark p-5 rounded-2xl border border-slate-800 relative group">
-                            <div class="flex justify-between items-start gap-3 mb-2">
-                                <span class="px-2.5 py-1 bg-indigo-500/20 text-indigo-300 rounded-lg text-[10px] font-extrabold uppercase">Kelas ${s.tingkat} • ${s.mapel}</span>
-                                <div class="flex items-center space-x-1">
-                                    <button onclick="window.openEditSoalModal('${s.id}')" class="text-indigo-400 hover:text-indigo-300 text-xs p-1.5 hover:bg-indigo-500/20 rounded-lg transition" title="Edit Soal"><i class="fa-solid fa-pen-to-square"></i></button>
-                                    <button onclick="window.hapusSoal('${s.id}')" class="text-red-400 hover:text-red-300 text-xs p-1.5 hover:bg-red-500/20 rounded-lg transition" title="Hapus Soal"><i class="fa-solid fa-trash"></i></button>
-                                </div>
+                        <div onclick="window.loadManajemenSoal('${filterTingkat}', false, '${mapel}')" class="glass-card-dark p-6 rounded-2xl border border-slate-700 hover:border-indigo-500 cursor-pointer transition group shadow-lg text-center flex flex-col items-center justify-center space-y-3">
+                            <div class="w-16 h-16 bg-indigo-500/10 text-indigo-400 group-hover:bg-indigo-500 group-hover:text-white rounded-2xl flex items-center justify-center text-4xl transition transform group-hover:scale-110">
+                                <i class="fa-solid fa-folder-open"></i>
                             </div>
-                            <p class="text-sm text-slate-200 font-semibold mb-3">${idx+1}. ${s.pertanyaan}</p>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-                                <div class="p-2 rounded-xl ${s.kunci==='A'?'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300':'bg-slate-900/50 text-slate-400'}">A. ${s.pilihan_a}</div>
-                                <div class="p-2 rounded-xl ${s.kunci==='B'?'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300':'bg-slate-900/50 text-slate-400'}">B. ${s.pilihan_b}</div>
-                                ${s.pilihan_c !== '-' && s.pilihan_c !== '' ? `<div class="p-2 rounded-xl ${s.kunci==='C'?'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300':'bg-slate-900/50 text-slate-400'}">C. ${s.pilihan_c}</div>` : ''}
-                                ${s.pilihan_d !== '-' && s.pilihan_d !== '' ? `<div class="p-2 rounded-xl ${s.kunci==='D'?'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300':'bg-slate-900/50 text-slate-400'}">D. ${s.pilihan_d}</div>` : ''}
+                            <div>
+                                <h3 class="font-bold text-white text-sm font-heading group-hover:text-indigo-300 transition">${mapel}</h3>
+                                <p class="text-[11px] font-bold ${count > 0 ? 'text-emerald-400' : 'text-slate-500'} mt-1">${count} Soal</p>
                             </div>
                         </div>
                     `;
                 });
                 html += `</div>`;
+            } else {
+                // Tampilan List Soal dalam satu Mapel
+                let filteredSoal = soalData.filter(s => s.mapel === window.currentFilterMapel);
+                
+                html += `
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 bg-slate-900 p-4 rounded-2xl border border-slate-800">
+                        <div class="flex items-center space-x-4">
+                            <button onclick="window.loadManajemenSoal('${filterTingkat}', false, 'semua')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition"><i class="fa-solid fa-arrow-left mr-2"></i>Kembali</button>
+                            <h2 class="font-bold text-indigo-300 text-sm"><i class="fa-solid fa-folder-open mr-2"></i>Folder: ${window.currentFilterMapel}</h2>
+                        </div>
+                        <div class="flex gap-2 flex-wrap">
+                            <button onclick="window.hapusSoalTerpilih()" id="btn-hapus-soal" class="hidden px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl text-xs uppercase shadow-md transition">Hapus Terpilih (<span id="count-soal-terpilih">0</span>)</button>
+                            <button onclick="window.hapusSemuaSoalMapel('${window.currentFilterMapel}')" class="px-4 py-2 bg-red-600/80 hover:bg-red-500 text-white font-bold rounded-xl text-xs uppercase shadow-md transition">Kosongkan Folder</button>
+                        </div>
+                    </div>
+                `;
+                
+                if (filteredSoal.length === 0) {
+                    html += `
+                        <div class="glass-card-dark p-8 rounded-2xl text-center space-y-3">
+                            <div class="text-slate-400 font-medium text-xs">Folder ini masih kosong. Belum ada soal untuk mata pelajaran ini.</div>
+                        </div>
+                    `;
+                } else {
+                    html += `<div class="space-y-4">
+                        <div class="flex items-center px-3 mb-2 bg-slate-900/50 p-3 rounded-xl border border-slate-800">
+                            <input type="checkbox" onchange="window.toggleAllSoal(event)" class="cursor-pointer accent-indigo-500 w-4 h-4 rounded mr-3">
+                            <span class="text-xs font-bold text-slate-400 uppercase">Pilih Semua Soal</span>
+                        </div>
+                    `;
+                    filteredSoal.forEach((s, idx) => {
+                        html += `
+                            <div class="glass-card-dark p-5 rounded-2xl border border-slate-800 relative group flex gap-4">
+                                <div class="pt-1">
+                                    <input type="checkbox" class="chk-soal cursor-pointer accent-indigo-500 w-4 h-4 rounded" value="${s.id}" onchange="window.updateBtnHapusSoalTerpilih()">
+                                </div>
+                                <div class="flex-1">
+                                    <div class="flex justify-between items-start gap-3 mb-2">
+                                        <span class="px-2.5 py-1 bg-indigo-500/20 text-indigo-300 rounded-lg text-[10px] font-extrabold uppercase">Kelas ${s.tingkat} • ${s.mapel}</span>
+                                        <div class="flex items-center space-x-1">
+                                            <button onclick="window.openEditSoalModal('${s.id}')" class="px-3 py-1.5 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 text-[10px] font-bold uppercase rounded-lg transition">Edit</button>
+                                            <button onclick="window.hapusSoal('${s.id}')" class="px-3 py-1.5 bg-red-500/10 text-red-400 hover:bg-red-500/20 text-[10px] font-bold uppercase rounded-lg transition">Hapus</button>
+                                        </div>
+                                    </div>
+                                    <p class="text-sm text-slate-200 font-semibold mb-3">${idx+1}. ${s.pertanyaan}</p>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                                        <div class="p-2 rounded-xl ${s.kunci==='A'?'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300':'bg-slate-900/50 text-slate-400'}">A. ${s.pilihan_a}</div>
+                                        <div class="p-2 rounded-xl ${s.kunci==='B'?'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300':'bg-slate-900/50 text-slate-400'}">B. ${s.pilihan_b}</div>
+                                        ${s.pilihan_c !== '-' && s.pilihan_c !== '' ? `<div class="p-2 rounded-xl ${s.kunci==='C'?'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300':'bg-slate-900/50 text-slate-400'}">C. ${s.pilihan_c}</div>` : ''}
+                                        ${s.pilihan_d !== '-' && s.pilihan_d !== '' ? `<div class="p-2 rounded-xl ${s.kunci==='D'?'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300':'bg-slate-900/50 text-slate-400'}">D. ${s.pilihan_d}</div>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += `</div>`;
+                }
             }
             container.innerHTML = html;
         };
 
-        window.loadManajemenSoal = function(filterTingkat = 'semua', forceRefresh = false) {
-            window.currentRoute = 'soal'; window.currentFilterTingkat = filterTingkat;
+        window.loadManajemenSoal = function(filterTingkat = window.currentFilterTingkat || 'semua', forceRefresh = false, filterMapel = window.currentFilterMapel || 'semua') {
+            window.currentRoute = 'soal'; 
+            window.currentFilterTingkat = filterTingkat;
+            window.currentFilterMapel = filterMapel;
             const needsFetch = !window.appData.isFetched.soal || forceRefresh;
             
             if (needsFetch) {
@@ -658,6 +706,56 @@
                 let filtered = filterTingkat === 'semua' ? window.appData.soal : window.appData.soal.filter(s => String(s.tingkat) === filterTingkat);
                 window.renderSoalUI(filtered, filterTingkat, false);
             }
+        };
+
+        window.toggleAllSoal = function(e) {
+            const isChecked = e.target.checked;
+            document.querySelectorAll('.chk-soal').forEach(chk => chk.checked = isChecked);
+            window.updateBtnHapusSoalTerpilih();
+        };
+
+        window.updateBtnHapusSoalTerpilih = function() {
+            const count = document.querySelectorAll('.chk-soal:checked').length;
+            const btn = document.getElementById('btn-hapus-soal');
+            if (btn) {
+                if (count > 0) {
+                    btn.classList.remove('hidden');
+                    document.getElementById('count-soal-terpilih').innerText = count;
+                } else {
+                    btn.classList.add('hidden');
+                }
+            }
+        };
+
+        window.hapusSoalTerpilih = function() {
+            const checked = document.querySelectorAll('.chk-soal:checked');
+            if (checked.length === 0) return;
+            window.showConfirm(`Yakin ingin menghapus ${checked.length} soal terpilih?`, async () => {
+                const ids = Array.from(checked).map(chk => chk.value);
+                try {
+                    await getDb().from('soal').delete().in('id', ids);
+                    showNotification(`${checked.length} Soal berhasil dihapus.`);
+                    window.loadManajemenSoal(window.currentFilterTingkat, true, window.currentFilterMapel);
+                } catch(err) {
+                    showNotification('Gagal menghapus: ' + err.message);
+                }
+            });
+        };
+
+        window.hapusSemuaSoalMapel = function(mapel) {
+            window.showConfirm(`Yakin ingin MENGOSONGKAN FOLDER ${mapel}? (Seluruh Soal akan terhapus)`, async () => {
+                try {
+                    let query = getDb().from('soal').delete().eq('mapel', mapel);
+                    if (window.currentFilterTingkat !== 'semua') {
+                        query = query.eq('tingkat', window.currentFilterTingkat);
+                    }
+                    await query;
+                    showNotification(`Folder ${mapel} berhasil dikosongkan.`);
+                    window.loadManajemenSoal(window.currentFilterTingkat, true, window.currentFilterMapel);
+                } catch(e) {
+                    showNotification('Gagal mengosongkan folder: ' + e.message);
+                }
+            });
         };
 
         window.openEditSoalModal = function(id) {
@@ -801,18 +899,18 @@
         // ==========================================
         window.loadManajemenJadwal = function(forceRefresh = false) {
             window.currentRoute = 'jadwal'; const container = document.getElementById('content-container');
-            container.innerHTML = `<div class="mb-8 flex justify-between items-center"><div><h1 class="text-2xl md:text-3xl font-black text-white font-heading">Jadwal & Token Ujian</h1><p class="text-xs text-slate-400 mt-1">Kelola Jadwal, Token, dan Status Ujian Siswa</p></div><button onclick="window.openNewJadwalModal()" class="px-5 py-3 gradient-btn text-white font-bold rounded-xl text-xs uppercase shadow-lg"><i class="fa-solid fa-plus mr-1"></i> Tambah Jadwal</button></div><div id="jadwal-list-container" class="space-y-4"><div class="text-center py-8 text-indigo-400 font-medium"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Memuat Jadwal...</div></div>`;
+            container.innerHTML = `<div class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4"><div><h1 class="text-2xl md:text-3xl font-black text-white font-heading">Jadwal & Token Ujian</h1><p class="text-xs text-slate-400 mt-1">Kelola Jadwal, Token, dan Status Ujian Siswa</p></div><div class="flex gap-2 flex-wrap"><button onclick="window.hapusJadwalTerpilih()" id="btn-hapus-jadwal" class="hidden px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl text-xs uppercase shadow-lg">Hapus Terpilih (<span id="count-jadwal-terpilih">0</span>)</button><button onclick="window.hapusSemuaJadwal()" class="px-4 py-2.5 bg-red-600/80 hover:bg-red-500 text-white font-bold rounded-xl text-xs uppercase shadow-md transition">Hapus Semua</button><button onclick="window.openNewJadwalModal()" class="px-5 py-2.5 gradient-btn text-white font-bold rounded-xl text-xs uppercase shadow-lg"><i class="fa-solid fa-plus mr-1"></i> Tambah Jadwal</button></div></div><div id="jadwal-list-container" class="space-y-4"><div class="text-center py-8 text-indigo-400 font-medium"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Memuat Jadwal...</div></div>`;
             
             const renderJadwal = (newData) => {
                 let html = '';
                 if(newData.length === 0) { html = `<div class="glass-card-dark p-8 rounded-2xl text-center text-slate-500 font-medium">Belum ada jadwal ujian. Klik "Tambah Jadwal" untuk membuat baru.</div>`; }
                 else {
-                    html = `<div class="glass-card-dark rounded-2xl overflow-hidden border border-slate-800"><div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="bg-slate-900 text-slate-400 font-bold uppercase"><th class="p-4">Tingkat</th><th class="p-4">Mata Pelajaran</th><th class="p-4">Hari / Tanggal</th><th class="p-4 text-center">Token</th><th class="p-4 text-center">Durasi</th><th class="p-4 text-center">Status</th><th class="p-4 text-center">Aksi</th></tr></thead><tbody class="divide-y divide-slate-800">`;
+                    html = `<div class="glass-card-dark rounded-2xl overflow-hidden border border-slate-800"><div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="bg-slate-900 text-slate-400 font-bold uppercase"><th class="p-4 w-10 text-center"><input type="checkbox" onchange="window.toggleAllJadwal(event)" class="cursor-pointer accent-indigo-500 w-4 h-4 rounded"></th><th class="p-4">Tingkat</th><th class="p-4">Mata Pelajaran</th><th class="p-4">Hari / Tanggal</th><th class="p-4 text-center">Token</th><th class="p-4 text-center">Durasi</th><th class="p-4 text-center">Status</th><th class="p-4 text-center">Aksi</th></tr></thead><tbody class="divide-y divide-slate-800">`;
                     newData.forEach(j => {
                         const isAktif = String(j.status || '').toLowerCase() === 'aktif';
                         const tglFormatted = j.tanggal ? formatTanggalIndo(j.tanggal) : '-';
                         const hariTgl = j.hari ? `${j.hari}, ${tglFormatted}` : tglFormatted;
-                        html += `<tr><td class="p-4 font-bold text-indigo-300">Kelas ${j.tingkat}</td><td class="p-4 font-semibold text-white">${j.mapel}</td><td class="p-4 text-slate-300 font-medium">${hariTgl}</td><td class="p-4 text-center"><span class="px-2.5 py-1 rounded-lg font-mono font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 text-xs">${j.token || '-'}</span></td><td class="p-4 text-center text-slate-300">${j.durasi||90} Menit</td><td class="p-4 text-center"><span class="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase ${isAktif?'bg-emerald-500/20 text-emerald-400':'bg-red-500/20 text-red-400'}">${j.status||'Aktif'}</span></td><td class="p-4 text-center space-x-2"><button onclick="window.toggleStatusJadwal('${j.id}', '${j.status}')" class="px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase transition ${isAktif?'bg-red-500/20 text-red-400 hover:bg-red-500/30':'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'}">${isAktif?'Nonaktifkan':'Aktifkan'}</button><button onclick="window.hapusJadwal('${j.id}')" class="w-8 h-8 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition"><i class="fa-solid fa-trash"></i></button></td></tr>`;
+                        html += `<tr><td class="p-4 text-center"><input type="checkbox" class="chk-jadwal cursor-pointer accent-indigo-500 w-4 h-4 rounded" value="${j.id}" onchange="window.updateBtnHapusJadwalTerpilih()"></td><td class="p-4 font-bold text-indigo-300">Kelas ${j.tingkat}</td><td class="p-4 font-semibold text-white">${j.mapel}</td><td class="p-4 text-slate-300 font-medium">${hariTgl}</td><td class="p-4 text-center"><span class="px-2.5 py-1 rounded-lg font-mono font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 text-xs">${j.token || '-'}</span></td><td class="p-4 text-center text-slate-300">${j.durasi||90} Menit</td><td class="p-4 text-center"><span class="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase ${isAktif?'bg-emerald-500/20 text-emerald-400':'bg-red-500/20 text-red-400'}">${j.status||'Aktif'}</span></td><td class="p-4 text-center space-x-2"><button onclick="window.toggleStatusJadwal('${j.id}', '${j.status}')" class="px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase transition ${isAktif?'bg-red-500/20 text-red-400 hover:bg-red-500/30':'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'}">${isAktif?'Nonaktifkan':'Aktifkan'}</button><button onclick="window.openEditJadwalModal('${j.id}')" class="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 rounded-lg transition font-bold uppercase text-[10px] tracking-widest">Edit</button><button onclick="window.hapusJadwal('${j.id}')" class="px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition font-bold uppercase text-[10px] tracking-widest">Hapus</button></td></tr>`;
                     });
                     html += `</tbody></table></div></div>`;
                 }
@@ -857,6 +955,46 @@
 
         window.hapusJadwal = function(id) { window.showConfirm("Hapus jadwal ini?", async () => { try { await getDb().from('jadwal').delete().eq('id', id); showNotification('Jadwal dihapus.'); window.loadManajemenJadwal(true); } catch(e) {} }); };
 
+        window.openEditJadwalModal = function(id) {
+            const j = window.appData.jadwal.find(x => String(x.id) === String(id));
+            if(!j) return;
+            let modal = document.getElementById('app-modal'); if (!modal) { modal = document.createElement('div'); modal.id = 'app-modal'; document.body.appendChild(modal); }
+            modal.className = 'fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/80 p-4 backdrop-blur-md';
+            modal.innerHTML = `<div class="glass-card-dark p-6 md:p-8 rounded-3xl max-w-md w-full border border-slate-700 shadow-2xl relative max-h-[90vh] overflow-y-auto"><h3 class="text-xl font-bold text-white mb-4 font-heading">Edit Jadwal Ujian</h3><form onsubmit="window.updateJadwal(event, '${id}')" class="space-y-4"><div class="grid grid-cols-2 gap-3"><div><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Tingkat</label><select id="ej-tingkat" required class="w-full p-3 glass-input rounded-xl text-xs bg-slate-900"><option value="7" ${j.tingkat==='7'?'selected':''}>Kelas 7</option><option value="8" ${j.tingkat==='8'?'selected':''}>Kelas 8</option><option value="9" ${j.tingkat==='9'?'selected':''}>Kelas 9</option></select></div><div><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Durasi (Menit)</label><input type="number" id="ej-durasi" value="${j.durasi||90}" required class="w-full p-3 glass-input rounded-xl text-xs"></div></div><div><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Mata Pelajaran</label><select id="ej-mapel" required class="w-full p-3 glass-input rounded-xl text-xs bg-slate-900">${window.listMapel.map(m=>`<option value="${m}" ${j.mapel===m?'selected':''}>${m}</option>`).join('')}</select></div><div class="grid grid-cols-2 gap-3"><div><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Hari</label><select id="ej-hari" required class="w-full p-3 glass-input rounded-xl text-xs bg-slate-900"><option value="Senin" ${j.hari==='Senin'?'selected':''}>Senin</option><option value="Selasa" ${j.hari==='Selasa'?'selected':''}>Selasa</option><option value="Rabu" ${j.hari==='Rabu'?'selected':''}>Rabu</option><option value="Kamis" ${j.hari==='Kamis'?'selected':''}>Kamis</option><option value="Jumat" ${j.hari==='Jumat'?'selected':''}>Jum'at</option><option value="Sabtu" ${j.hari==='Sabtu'?'selected':''}>Sabtu</option></select></div><div><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Tanggal</label><input type="date" id="ej-tanggal" value="${j.tanggal||''}" required class="w-full p-3 glass-input rounded-xl text-xs text-white"></div></div><div><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Token Ujian</label><div class="flex gap-2"><input type="text" id="ej-token" value="${j.token||''}" required class="w-full p-3 glass-input rounded-xl text-xs font-mono uppercase tracking-widest text-amber-300 font-bold"><button type="button" onclick="document.getElementById('ej-token').value = window.generateRandomToken()" class="px-3 py-3 bg-amber-600/30 hover:bg-amber-600/50 text-amber-300 rounded-xl text-xs font-bold border border-amber-500/40 shrink-0"><i class="fa-solid fa-arrows-rotate"></i> Acak</button></div></div><div><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Status</label><select id="ej-status" class="w-full p-3 glass-input rounded-xl text-xs bg-slate-900"><option value="Aktif" ${j.status==='Aktif'?'selected':''}>Aktif</option><option value="Nonaktif" ${j.status==='Nonaktif'?'selected':''}>Nonaktif</option></select></div><div class="flex gap-2 pt-4"><button type="button" onclick="document.getElementById('app-modal').classList.add('hidden')" class="flex-1 py-3 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold uppercase hover:bg-slate-700 transition">Batal</button><button type="submit" class="flex-1 py-3 gradient-btn text-white rounded-xl text-xs font-bold uppercase">Simpan Perubahan</button></div></form></div>`;
+            modal.classList.remove('hidden');
+        };
+
+        window.updateJadwal = async function(e, id) {
+            e.preventDefault(); const tingkat = document.getElementById('ej-tingkat').value; const mapel = document.getElementById('ej-mapel').value; const durasi = parseInt(document.getElementById('ej-durasi').value); const status = document.getElementById('ej-status').value; const hari = document.getElementById('ej-hari').value; const tanggal = document.getElementById('ej-tanggal').value; const token = document.getElementById('ej-token').value.trim().toUpperCase();
+            try { await getDb().from('jadwal').update({ tingkat, mapel, durasi, status, hari, tanggal, token }).eq('id', id); showNotification('Jadwal berhasil diperbarui!'); document.getElementById('app-modal').classList.add('hidden'); window.loadManajemenJadwal(true); } catch(err) { showNotification('Gagal memperbarui jadwal: ' + err.message); }
+        };
+
+        window.toggleAllJadwal = function(e) { const isChecked = e.target.checked; document.querySelectorAll('.chk-jadwal').forEach(chk => chk.checked = isChecked); window.updateBtnHapusJadwalTerpilih(); };
+        window.updateBtnHapusJadwalTerpilih = function() { const checkedCount = document.querySelectorAll('.chk-jadwal:checked').length; const btn = document.getElementById('btn-hapus-jadwal'); if(btn) { if(checkedCount > 0) { btn.classList.remove('hidden'); document.getElementById('count-jadwal-terpilih').innerText = checkedCount; } else { btn.classList.add('hidden'); } } };
+        
+        window.hapusJadwalTerpilih = function() {
+            const checked = document.querySelectorAll('.chk-jadwal:checked'); if(checked.length === 0) return;
+            window.showConfirm(`Yakin ingin menghapus ${checked.length} jadwal yang dipilih?`, async () => {
+                const ids = Array.from(checked).map(chk => chk.value);
+                try { await getDb().from('jadwal').delete().in('id', ids); showNotification(`${checked.length} Jadwal berhasil dihapus.`); window.loadManajemenJadwal(true); } catch(err) { showNotification('Gagal menghapus: ' + err.message); }
+            });
+        };
+
+        window.hapusSemuaJadwal = function() {
+            window.showConfirm("Yakin ingin menghapus SEMUA jadwal ujian?", async () => {
+                try {
+                    const { data } = await getDb().from('jadwal').select('id');
+                    if(data && data.length > 0) {
+                        const ids = data.map(d => d.id);
+                        await getDb().from('jadwal').delete().in('id', ids);
+                    }
+                    showNotification('Semua jadwal berhasil dihapus.'); 
+                    window.loadManajemenJadwal(true);
+                } catch(e) { 
+                    showNotification('Gagal menghapus: ' + e.message); 
+                }
+            });
+        };
 
         // ==========================================
         // FITUR DATABASE SISWA & PENGAWAS
@@ -1205,13 +1343,13 @@
                             <div><label class="block text-xs font-bold text-slate-400 uppercase mb-1">Pilih Ruang</label><select id="dh-ruang" class="w-full p-3 glass-input rounded-xl text-xs bg-slate-900">${ruangOpts}</select></div>
                             <div><label class="block text-xs font-bold text-slate-400 uppercase mb-1">Mata Pelajaran</label><select id="dh-mapel" class="w-full p-3 glass-input rounded-xl text-xs bg-slate-900">${window.listMapel.map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
                         </div>
-                        <button onclick="window.cetakDaftarHadirView()" class="w-full py-4 gradient-btn text-white font-bold rounded-xl text-xs uppercase tracking-wider shadow-lg"><i class="fa-solid fa-print mr-2"></i> Cetak Presensi Presisi (PDF / Dua Logo)</button>
+                        <button onclick="window.cetakDaftarHadirView()" class="w-full py-4 gradient-btn text-white font-bold rounded-xl text-xs uppercase tracking-wider shadow-lg"><i class="fa-solid fa-print mr-2"></i> Cetak Presensi Presisi (PDF)</button>
                     </div>
                 `;
             } else {
                 contentArea.innerHTML = `
                     <div class="glass-card-dark p-6 rounded-2xl border border-slate-800 space-y-4">
-                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-2"><div><h3 class="text-lg font-bold text-white font-heading">Daftar Hadir Pengawas</h3><p class="text-xs text-slate-400">Lembar presensi cetak khusus untuk pengawas ruang ujian.</p></div><button onclick="window.cetakDaftarHadirPengawasView()" class="px-5 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs uppercase shadow-lg transition w-full sm:w-auto"><i class="fa-solid fa-print mr-2"></i> Cetak (PDF / Dua Logo)</button></div>
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-2"><div><h3 class="text-lg font-bold text-white font-heading">Daftar Hadir Pengawas</h3><p class="text-xs text-slate-400">Lembar presensi cetak khusus untuk pengawas ruang ujian.</p></div><button onclick="window.cetakDaftarHadirPengawasView()" class="px-5 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs uppercase shadow-lg transition w-full sm:w-auto"><i class="fa-solid fa-print mr-2"></i> Cetak (PDF)</button></div>
                         <div class="rounded-2xl overflow-x-auto border border-slate-800"><table class="w-full text-left text-xs whitespace-nowrap"><thead><tr class="bg-slate-900 text-slate-400 font-bold uppercase"><th class="p-4 w-12 text-center">No</th><th class="p-4">Nama Pengawas</th><th class="p-4">NIP</th><th class="p-4 text-center">Ruang</th><th class="p-4 text-center">Tanda Tangan</th></tr></thead><tbody class="divide-y divide-slate-800 bg-slate-900/50"><tr><td class="p-4 text-center text-slate-400">1</td><td class="p-4 font-semibold text-white">.......................................</td><td class="p-4 text-slate-400">........................</td><td class="p-4 text-center font-bold text-indigo-300">Ruang 001</td><td class="p-4 text-center">1. .......</td></tr><tr><td class="p-4 text-center text-slate-400">2</td><td class="p-4 font-semibold text-white">.......................................</td><td class="p-4 text-slate-400">........................</td><td class="p-4 text-center font-bold text-indigo-300">Ruang 002</td><td class="p-4 text-center">2. .......</td></tr><tr><td class="p-4 text-center text-slate-400">3</td><td class="p-4 font-semibold text-white">.......................................</td><td class="p-4 text-slate-400">........................</td><td class="p-4 text-center font-bold text-indigo-300">Ruang 003</td><td class="p-4 text-center">3. .......</td></tr></tbody></table></div>
                     </div>
                 `;
@@ -1310,11 +1448,45 @@
         // ==========================================
         window.loadKartuUjian = function() {
             window.currentRoute = 'kartu'; const container = document.getElementById('content-container');
-            container.innerHTML = `<div class="mb-8"><div><h1 class="text-2xl md:text-3xl font-black text-white font-heading">Cetak Kartu Peserta Ujian</h1><p class="text-xs text-slate-400 mt-1">Cetak Kartu Login CBT Seluruh Siswa Lengkap dengan Logo & Password</p></div></div><div class="glass-card-dark p-6 rounded-2xl border border-slate-800 space-y-4 max-w-xl"><div><label class="block text-xs font-bold text-slate-400 uppercase mb-1">Pilih Tingkat</label><select id="kt-tingkat" class="w-full p-3 glass-input rounded-xl text-xs bg-slate-900"><option value="semua">Semua Kelas</option><option value="7">Kelas 7</option><option value="8">Kelas 8</option><option value="9">Kelas 9</option></select></div><button onclick="window.cetakKartuUjianView()" class="w-full py-4 gradient-btn text-white font-bold rounded-xl text-xs uppercase tracking-wider shadow-lg"><i class="fa-solid fa-id-card mr-2"></i> Cetak Kartu Peserta (PDF / Print)</button></div>`;
+            container.innerHTML = `
+                <div class="mb-8"><div><h1 class="text-2xl md:text-3xl font-black text-white font-heading">Cetak Kartu Peserta Ujian</h1><p class="text-xs text-slate-400 mt-1">Cetak Kartu Login CBT Seluruh Siswa Lengkap dengan Logo & Password</p></div></div>
+                <div class="glass-card-dark p-6 md:p-8 rounded-3xl border border-slate-800 space-y-5 max-w-2xl shadow-xl">
+                    <h3 class="text-sm font-bold text-white border-b border-slate-800 pb-2"><i class="fa-solid fa-sliders text-indigo-400 mr-2"></i> Pengaturan Format Kartu</h3>
+                    <div><label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">Pilih Tingkat Siswa</label><select id="kt-tingkat" class="w-full p-3 glass-input rounded-xl text-xs bg-slate-900"><option value="semua">Semua Kelas</option><option value="7">Kelas 7</option><option value="8">Kelas 8</option><option value="9">Kelas 9</option></select></div>
+                    
+                    <div class="grid grid-cols-4 gap-3">
+                        <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Judul Kartu</label><input type="text" id="kt-judul" value="KARTU PESERTA UJIAN" class="w-full p-3 glass-input rounded-xl text-xs"></div>
+                        <div class="col-span-1"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Ukuran (px)</label><input type="number" id="kt-fs-judul" value="22" class="w-full p-3 glass-input rounded-xl text-xs"></div>
+                    </div>
+                    <div class="grid grid-cols-4 gap-3">
+                        <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nama Kegiatan</label><input type="text" id="kt-kegiatan" value="ASESMEN SUMATIF AKHIR SEMESTER (ASAS)" class="w-full p-3 glass-input rounded-xl text-xs"></div>
+                        <div class="col-span-1"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Ukuran (px)</label><input type="number" id="kt-fs-kegiatan" value="16" class="w-full p-3 glass-input rounded-xl text-xs"></div>
+                    </div>
+                    <div class="grid grid-cols-4 gap-3">
+                        <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nama Sekolah</label><input type="text" id="kt-sekolah" value="${window.globalSettings.namaSekolah}" class="w-full p-3 glass-input rounded-xl text-xs"></div>
+                        <div class="col-span-1"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Ukuran (px)</label><input type="number" id="kt-fs-sekolah" value="20" class="w-full p-3 glass-input rounded-xl text-xs"></div>
+                    </div>
+                    <div class="grid grid-cols-4 gap-3">
+                        <div class="col-span-3"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Tahun Pelajaran (Tapel)</label><input type="text" id="kt-tapel" value="TAHUN PELAJARAN ${window.globalSettings.tahunPelajaran || '2026/2027'}" class="w-full p-3 glass-input rounded-xl text-xs"></div>
+                        <div class="col-span-1"><label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Ukuran (px)</label><input type="number" id="kt-fs-tapel" value="15" class="w-full p-3 glass-input rounded-xl text-xs"></div>
+                    </div>
+                    
+                    <button onclick="window.cetakKartuUjianView()" class="w-full py-4 mt-2 gradient-btn text-white font-bold rounded-xl text-xs uppercase tracking-wider shadow-lg transition hover:shadow-xl"><i class="fa-solid fa-print mr-2"></i> Cetak Kartu Peserta (PDF)</button>
+                </div>
+            `;
         };
 
         window.cetakKartuUjianView = async function() {
             const tk = document.getElementById('kt-tingkat').value;
+            const judul = document.getElementById('kt-judul').value;
+            const fsJudul = document.getElementById('kt-fs-judul').value || 22;
+            const kegiatan = document.getElementById('kt-kegiatan').value;
+            const fsKegiatan = document.getElementById('kt-fs-kegiatan').value || 16;
+            const sekolah = document.getElementById('kt-sekolah').value;
+            const fsSekolah = document.getElementById('kt-fs-sekolah').value || 20;
+            const tapel = document.getElementById('kt-tapel').value;
+            const fsTapel = document.getElementById('kt-fs-tapel').value || 15;
+
             let listSiswa = window.appData.peserta;
             if (!listSiswa || listSiswa.length === 0) { try { const { data } = await getDb().from('peserta').select('*'); listSiswa = data || []; window.appData.peserta = listSiswa; } catch(e) {} }
             if (tk !== 'semua') listSiswa = listSiswa.filter(p => String(p.tingkat) === String(tk));
@@ -1331,10 +1503,10 @@
                                 <div class="header" style="display: flex; align-items: center; justify-content: center; border-bottom: 3px double #000; padding-bottom: 12px; margin-bottom: 15px; text-align: center; position: relative;">
                                     <img src="${window.globalSettings.logoUrl||window.PANESA_LOGO}" style="width: 60px; height: 60px; position: absolute; left: 0; top: 0; object-fit: contain;">
                                     <div style="flex: 1; padding-left: 65px;">
-                                        <div style="font-size: 22px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; color: #000; line-height: 1.1;">KARTU PESERTA UJIAN</div>
-                                        <div style="font-size: 16px; font-weight: bold; text-transform: uppercase; margin: 6px 0; color: #333; line-height: 1.1;">ASESMEN SUMATIF AKHIR SEMESTER (ASAS)</div>
-                                        <div style="font-size: 20px; font-weight: 900; text-transform: uppercase; color: #1e3a8a; line-height: 1.1;">${window.globalSettings.namaSekolah}</div>
-                                        <div style="font-size: 15px; font-weight: bold; color: #000; margin-top: 4px; line-height: 1.1;">TAHUN PELAJARAN ${window.globalSettings.tahunPelajaran || '2026/2027'}</div>
+                                        <div style="font-size: ${fsJudul}px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; color: #000; line-height: 1.1;">${judul}</div>
+                                        <div style="font-size: ${fsKegiatan}px; font-weight: bold; text-transform: uppercase; margin: 6px 0; color: #333; line-height: 1.1;">${kegiatan}</div>
+                                        <div style="font-size: ${fsSekolah}px; font-weight: 900; text-transform: uppercase; color: #1e3a8a; line-height: 1.1;">${sekolah}</div>
+                                        <div style="font-size: ${fsTapel}px; font-weight: bold; color: #000; margin-top: 4px; line-height: 1.1;">${tapel}</div>
                                     </div>
                                 </div>
                                 <table style="width:100%; border-collapse:collapse; color: #000;">
