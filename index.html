@@ -1029,11 +1029,13 @@
                         <button onclick="window.loadDatabasePeserta('7')" class="px-4 py-2 rounded-xl transition shrink-0 ${filterTingkat === '7' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}">Kelas 7</button>
                         <button onclick="window.loadDatabasePeserta('8')" class="px-4 py-2 rounded-xl transition shrink-0 ${filterTingkat === '8' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}">Kelas 8</button>
                         <button onclick="window.loadDatabasePeserta('9')" class="px-4 py-2 rounded-xl transition shrink-0 ${filterTingkat === '9' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}">Kelas 9</button>
+                        <button onclick="window.loadDatabasePeserta('terblokir')" class="px-4 py-2 rounded-xl transition shrink-0 ${filterTingkat === 'terblokir' ? 'bg-red-600 text-white shadow-md' : 'bg-slate-900 text-red-400 hover:text-white hover:bg-red-500/20'}"><i class="fa-solid fa-ban mr-1"></i> Terblokir</button>
                     </div>
                     <div class="flex gap-2 flex-wrap w-full lg:w-auto">
                         <button onclick="window.hapusPesertaTerpilih()" id="btn-hapus-peserta" class="hidden px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl text-xs uppercase shadow-lg"><i class="fa-solid fa-trash mr-1"></i> Hapus (<span id="count-peserta-terpilih">0</span>)</button>
                         <button onclick="window.generatePasswordPeserta()" class="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs uppercase shadow-lg"><i class="fa-solid fa-key mr-1"></i> Auto-Password</button>
                         <button onclick="window.openNewPesertaModal()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs uppercase shadow-md"><i class="fa-solid fa-plus mr-1"></i> Tambah Siswa</button>
+                        <button onclick="window.exportDataSiswaExcel()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs uppercase shadow-md"><i class="fa-solid fa-file-excel mr-1"></i> Export</button>
                         <button onclick="window.downloadExcelTemplatePeserta()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs uppercase shadow-md">📥 Template</button>
                         <button onclick="document.getElementById('excel-peserta-input').click()" class="px-5 py-2.5 gradient-btn text-white font-bold rounded-xl text-xs uppercase shadow-lg">📚 Import</button>
                         <input type="file" id="excel-peserta-input" accept=".xlsx, .xls, .csv" class="hidden" onchange="window.handleExcelImportPeserta(event)">
@@ -1043,7 +1045,12 @@
             `;
 
             const renderPeserta = (newData) => {
-                let filtered = filterTingkat === 'semua' ? newData : newData.filter(p => String(p.tingkat) === filterTingkat);
+                let filtered = newData;
+                if (filterTingkat === 'terblokir') {
+                    filtered = newData.filter(p => String(p.status_blokir || 'AKTIF').toUpperCase() === 'BLOKIR');
+                } else if (filterTingkat !== 'semua') {
+                    filtered = newData.filter(p => String(p.tingkat) === filterTingkat);
+                }
                 
                 filtered.sort((a, b) => {
                     const kA = a.kelas || ''; const kB = b.kelas || '';
@@ -1052,7 +1059,7 @@
                 });
 
                 let html = '';
-                if(filtered.length === 0) { html = `<div class="glass-card-dark p-8 rounded-2xl text-center text-slate-500 font-medium">Belum ada data siswa. Klik "Tambah Siswa" atau "Import" untuk memasukkan data.</div>`; }
+                if(filtered.length === 0) { html = `<div class="glass-card-dark p-8 rounded-2xl text-center text-slate-500 font-medium">${filterTingkat === 'terblokir' ? 'Tidak ada siswa yang terblokir saat ini.' : 'Belum ada data siswa. Klik "Tambah Siswa" atau "Import" untuk memasukkan data.'}</div>`; }
                 else {
                     html = `<div class="glass-card-dark rounded-2xl overflow-hidden border border-slate-800"><div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="bg-slate-900 text-slate-400 font-bold uppercase"><th class="p-3 w-10 text-center"><input type="checkbox" onchange="window.toggleAllPeserta(event)" class="cursor-pointer accent-indigo-500 w-4 h-4 rounded"></th><th class="p-3">Username / NIS</th><th class="p-3">Nama Lengkap</th><th class="p-3 text-center">Kelas</th><th class="p-3 text-center">Password</th><th class="p-3 text-center">Status</th><th class="p-3 text-center">Aksi</th></tr></thead><tbody class="divide-y divide-slate-800">`;
                     filtered.forEach(p => {
@@ -1293,34 +1300,33 @@
                     if(rows.length === 0) { showNotification("File Excel kosong!"); return; }
                     showNotification(`Memproses import ${rows.length} siswa secara massal...`);
                     
-                    const batchSize = 200; // Membagi data per 200 siswa agar server tidak menolak
+                    const batchSize = 200; // Membagi data per 200 siswa agar server tidak menolak payload besar
                     let successCount = 0;
 
                     for (let i = 0; i < rows.length; i += batchSize) {
                         const chunk = rows.slice(i, i + batchSize);
                         const insertData = chunk.map(r => ({
-                            username: String(r.username).trim(),
-                            nama: String(r.nama),
-                            tingkat: String(r.tingkat||'7'),
-                            kelas: String(r.kelas).toUpperCase(),
-                            password: String(r.password||window.generateRandomToken()),
+                            username: String(r.username || r.Username || '').trim(),
+                            nama: String(r.nama || r.Nama || ''),
+                            tingkat: String(r.tingkat || r.Tingkat || '7'),
+                            kelas: String(r.kelas || r.Kelas || '').toUpperCase(),
+                            password: String(r.password || r.Password || window.generateRandomToken()),
                             status_blokir: 'AKTIF'
                         })).filter(r => r.username && r.username !== 'undefined');
 
                         if(insertData.length > 0) {
-                            // Menggunakan upsert agar baris duplikat/sudah ada tertimpa, tidak membuat error semua
                             const { error } = await getDb().from('peserta').upsert(insertData, { onConflict: 'username' });
                             if(!error) successCount += insertData.length;
                             else console.error("Batch error:", error);
                         }
                     }
                     
-                    showNotification(`Import Selesai! ${successCount} siswa berhasil diproses.`); 
-                    window.loadDatabasePeserta(window.currentFilterTingkat, true); // True = Langsung muncul tanpa refresh
-                } catch(err) { showNotification("Gagal import data siswa! Periksa format Excel."); }
+                    showNotification(`Import Selesai! ${successCount} dari ${rows.length} siswa berhasil dimasukkan.`); 
+                    window.loadDatabasePeserta(window.currentFilterTingkat, true);
+                } catch(err) { showNotification("Gagal import data siswa! Periksa format kolom Excel."); }
             }; 
             reader.readAsArrayBuffer(file);
-            e.target.value = ''; // Reset input file agar file yang sama bisa diimport 2x
+            e.target.value = '';
         };
 
         window.generatePasswordPeserta = function() {
