@@ -714,21 +714,53 @@
             const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Template"); XLSX.writeFile(wb, "Template_Soal.xlsx");
         };
 
-        window.handleExcelImportSoal = function(e) {
+        window.handleExcelImportSoal = async function(e) {
             const file = e.target.files[0]; if(!file) return; const reader = new FileReader();
-            reader.onload = function(evt) {
+            reader.onload = async function(evt) {
                 try {
                     const data = new Uint8Array(evt.target.result); const workbook = XLSX.read(data, {type: 'array'});
                     const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-                    let newRows = [];
+                    let count = 0;
                     for(let r of rows) { 
-                        const newSoal = { id: window.generateId(), jenis: String(r.jenis||'PG').toUpperCase(), tingkat: String(r.tingkat||'7'), mapel: String(r.mapel||'Umum'), pertanyaan: String(r.pertanyaan||''), pilihan_a: String(r.pilihan_a||''), pilihan_b: String(r.pilihan_b||''), pilihan_c: String(r.pilihan_c||''), pilihan_d: String(r.pilihan_d||''), kunci: String(r.kunci||'A').toUpperCase(), skor: parseInt(r.skor||2) };
-                        window.appData.soal.push(newSoal); newRows.push(newSoal);
+                        // Normalisasi ke huruf kecil agar sistem kebal jika Excel menggunakan awalan Huruf Besar
+                        const rowData = {}; 
+                        for (let key in r) rowData[key.toLowerCase().trim()] = r[key]; 
+                        
+                        const pertanyaan = String(rowData.pertanyaan||'').trim();
+                        if (!pertanyaan) continue; // Lewati baris kosong
+                        
+                        const newSoal = { 
+                            id: window.generateId(), 
+                            jenis: String(rowData.jenis||'PG').toUpperCase(), 
+                            tingkat: String(rowData.tingkat||'7'), 
+                            mapel: String(rowData.mapel||'Umum').trim(), 
+                            pertanyaan: pertanyaan, 
+                            pilihan_a: String(rowData.pilihan_a||''), 
+                            pilihan_b: String(rowData.pilihan_b||''), 
+                            pilihan_c: String(rowData.pilihan_c||''), 
+                            pilihan_d: String(rowData.pilihan_d||''), 
+                            kunci: String(rowData.kunci||'A').toUpperCase(), 
+                            skor: parseInt(rowData.skor||2) 
+                        };
+                        window.appData.soal.push(newSoal); 
+                        count++;
                     }
-                    window.saveLocalData('soal'); 
-                    showNotification('Import Selesai!'); window.loadManajemenSoal('semua', true, 'semua');
-                } catch(e) { showNotification('Gagal import'); }
-            }; reader.readAsArrayBuffer(file);
+                    if (count > 0) {
+                        await window.saveLocalData('soal'); // Tunggu sinkronisasi Supabase selesai
+                        window.showNotification(`Berhasil import ${count} soal baru!`); 
+                        window.loadManajemenSoal('semua', true, 'semua');
+                    } else { 
+                        window.showNotification('Gagal: Format kolom tidak sesuai atau data kosong!'); 
+                    }
+                } catch(err) { 
+                    window.showNotification('Gagal membaca file Excel!'); 
+                    console.error(err); 
+                }
+                
+                // Reset form file agar file yang sama bisa di-import lagi setelah diedit
+                document.getElementById('excel-soal-input').value = ''; 
+            }; 
+            reader.readAsArrayBuffer(file);
         };
 
         // --- MANAJEMEN JADWAL ---
@@ -762,23 +794,70 @@
         window.hapusSemuaJadwal = function() { window.showConfirm("Hapus semua jadwal?", () => { window.appData.jadwal = []; window.saveLocalData('jadwal'); window.loadManajemenJadwal(); }); };
 
         // --- MANAJEMEN DATA SISWA ---
-        window.loadDatabasePeserta = function(filterTingkat = 'semua') {
-            window.currentRoute = 'peserta'; window.currentFilterTingkat = filterTingkat;
+        window.loadDatabasePeserta = function(filterTingkat = window.currentFilterTingkat || '7', filterKelas = null, page = null) {
+            // Hilangkan mode 'semua' dan default ke tingkat 7
+            if (filterTingkat === 'semua' || !filterTingkat) filterTingkat = '7';
+
+            if (filterTingkat !== window.currentFilterTingkat) {
+                filterKelas = null; // Reset kelas jika pindah tingkat
+                page = 1;
+            } else {
+                if (filterKelas === null) filterKelas = window.currentFilterKelasPeserta;
+                if (page === null) page = window.currentPagePeserta || 1;
+            }
+            
+            window.currentRoute = 'peserta'; 
+            window.currentFilterTingkat = filterTingkat;
+            const itemsPerPage = 20;
+
             const area = document.getElementById('content-container'); if(!area) return;
+
+            // Ambil data khusus tingkat tersebut
+            let baseFiltered = window.appData.peserta.filter(p => String(p.tingkat) === filterTingkat);
+            let uniqueClasses = [...new Set(baseFiltered.map(p => p.kelas))].sort();
+            
+            // Otomatis pilih kelas pertama (misal: 7A) jika tidak ada filter kelas
+            if (!filterKelas || filterKelas === 'semua' || !uniqueClasses.includes(filterKelas)) {
+                filterKelas = uniqueClasses.length > 0 ? uniqueClasses[0] : '';
+            }
+            
+            window.currentFilterKelasPeserta = filterKelas;
+            window.currentPagePeserta = page;
+
+            let filtered = filterKelas ? baseFiltered.filter(p => String(p.kelas) === filterKelas) : [];
+
+            const totalItems = filtered.length;
+            let totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+            if (page > totalPages) { page = totalPages; window.currentPagePeserta = page; }
+            
+            const startIndex = (page - 1) * itemsPerPage;
+            const paginatedData = filtered.slice(startIndex, startIndex + itemsPerPage);
+
+            let classOptions = '';
+            if (uniqueClasses.length === 0) {
+                classOptions = `<option value="">-- Belum ada kelas --</option>`;
+            } else {
+                uniqueClasses.forEach(c => {
+                    classOptions += `<option value="${c}" ${filterKelas === c ? 'selected' : ''}>Kelas ${c}</option>`;
+                });
+            }
 
             area.innerHTML = `
                 <div class="mb-6"><h1 class="text-2xl font-black text-white font-heading tracking-tight">Data Siswa</h1><p class="text-[11px] text-slate-400 mt-1 tracking-wide">Kelola Data Peserta Ujian</p></div>
                 <div class="mb-5 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                    <div class="flex gap-2 text-[11px] font-bold overflow-x-auto pb-1">
-                        <button onclick="window.loadDatabasePeserta('semua')" class="px-2.5 py-1.5 rounded-lg transition shrink-0 tracking-wider text-[10px] ${filterTingkat==='semua'?'bg-indigo-600 text-white':'bg-slate-900 text-slate-400 hover:text-white'}">Semua</button>
-                        <button onclick="window.loadDatabasePeserta('7')" class="px-2.5 py-1.5 rounded-lg transition shrink-0 tracking-wider text-[10px] ${filterTingkat==='7'?'bg-indigo-600 text-white':'bg-slate-900 text-slate-400 hover:text-white'}">Kelas 7</button>
-                        <button onclick="window.loadDatabasePeserta('8')" class="px-2.5 py-1.5 rounded-lg transition shrink-0 tracking-wider text-[10px] ${filterTingkat==='8'?'bg-indigo-600 text-white':'bg-slate-900 text-slate-400 hover:text-white'}">Kelas 8</button>
-                        <button onclick="window.loadDatabasePeserta('9')" class="px-2.5 py-1.5 rounded-lg transition shrink-0 tracking-wider text-[10px] ${filterTingkat==='9'?'bg-indigo-600 text-white':'bg-slate-900 text-slate-400 hover:text-white'}">Kelas 9</button>
+                    <div class="flex flex-wrap items-center gap-2 text-[11px] font-bold">
+                        <div class="flex gap-2 overflow-x-auto pb-1">
+                            <button onclick="window.loadDatabasePeserta('7', null, 1)" class="px-3 py-1.5 rounded-lg transition shrink-0 tracking-wider text-[10px] ${filterTingkat==='7'?'bg-indigo-600 text-white shadow-lg':'bg-slate-900 text-slate-400 hover:text-white'}">Tingkat 7</button>
+                            <button onclick="window.loadDatabasePeserta('8', null, 1)" class="px-3 py-1.5 rounded-lg transition shrink-0 tracking-wider text-[10px] ${filterTingkat==='8'?'bg-indigo-600 text-white shadow-lg':'bg-slate-900 text-slate-400 hover:text-white'}">Tingkat 8</button>
+                            <button onclick="window.loadDatabasePeserta('9', null, 1)" class="px-3 py-1.5 rounded-lg transition shrink-0 tracking-wider text-[10px] ${filterTingkat==='9'?'bg-indigo-600 text-white shadow-lg':'bg-slate-900 text-slate-400 hover:text-white'}">Tingkat 9</button>
+                        </div>
+                        <select onchange="window.loadDatabasePeserta('${filterTingkat}', this.value, 1)" class="px-3 py-1.5 rounded-lg bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 text-[10px] font-bold outline-none cursor-pointer hover:border-indigo-500 transition shadow-md">
+                            ${classOptions}
+                        </select>
                     </div>
                     <div class="flex gap-2 flex-wrap">
                         <button onclick="window.generateAllStudentPasswords()" class="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-[10px] uppercase tracking-wider shadow-md"><i class="fa-solid fa-key mr-1"></i> Acak Password</button>
                         <button onclick="window.hapusPesertaTerpilih()" id="btn-hapus-peserta" class="hidden px-2.5 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg text-[10px] uppercase tracking-wider shadow-md">Hapus (<span id="count-peserta-terpilih">0</span>)</button>
-                        <button onclick="window.hapusSemuaPeserta()" class="px-2.5 py-1.5 bg-red-600/80 text-white font-bold rounded-lg text-[10px] uppercase tracking-wider shadow-md">Hapus Semua</button>
                         <button onclick="window.openNewPesertaModal()" class="px-2.5 py-1.5 bg-indigo-600 text-white font-bold rounded-lg text-[10px] uppercase tracking-wider shadow-md"><i class="fa-solid fa-plus mr-1"></i> Tambah</button>
                         <button onclick="window.exportDataSiswaExcel()" class="px-2.5 py-1.5 bg-emerald-600 text-white font-bold rounded-lg text-[10px] uppercase tracking-wider shadow-md"><i class="fa-solid fa-file-excel mr-1"></i> Export</button>
                         <button onclick="window.downloadExcelTemplatePeserta()" class="px-2.5 py-1.5 bg-slate-800 text-slate-200 font-bold rounded-lg text-[10px] uppercase tracking-wider shadow-md"><i class="fa-solid fa-download mr-1"></i> Template</button>
@@ -789,14 +868,14 @@
                 <div id="peserta-list-container"></div>
             `;
 
-            let filtered = filterTingkat === 'semua' ? window.appData.peserta : window.appData.peserta.filter(p => String(p.tingkat) === filterTingkat);
             let html = '';
-            if(filtered.length === 0) { html = `<div class="glass-card-dark p-6 rounded-2xl text-center text-slate-500 font-medium text-[11px]">Belum ada siswa di kelas ini.</div>`; }
-            else {
+            if(paginatedData.length === 0) { 
+                html = `<div class="glass-card-dark p-6 rounded-2xl text-center text-slate-500 font-medium text-[11px]">Belum ada siswa di kelas ini.</div>`; 
+            } else {
                 html = `
-                    <div class="flex items-center px-3 mb-2 bg-slate-900/50 p-2.5 rounded-xl border border-slate-800"><input type="checkbox" onchange="window.toggleAllPeserta(event)" class="cursor-pointer accent-indigo-500 w-3.5 h-3.5 rounded mr-3"><span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pilih Semua Siswa</span></div>
+                    <div class="flex items-center px-3 mb-2 bg-slate-900/50 p-2.5 rounded-xl border border-slate-800"><input type="checkbox" onchange="window.toggleAllPeserta(event)" class="cursor-pointer accent-indigo-500 w-3.5 h-3.5 rounded mr-3"><span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pilih Semua Siswa (Hal ${page})</span></div>
                     <div class="glass-card-dark rounded-2xl overflow-hidden border border-slate-800"><div class="overflow-x-auto"><table class="w-full text-left text-[11px]"><thead><tr class="bg-slate-900 text-slate-400 font-bold uppercase tracking-wider"><th class="p-3 w-10"></th><th class="p-3">Username</th><th class="p-3">Nama</th><th class="p-3 text-center">Kelas</th><th class="p-3 text-center">Password</th><th class="p-3 text-center">Aksi</th></tr></thead><tbody class="divide-y divide-slate-800">`;
-                filtered.forEach(p => {
+                paginatedData.forEach(p => {
                     html += `<tr>
                         <td class="p-3"><input type="checkbox" class="chk-peserta cursor-pointer accent-indigo-500 w-3.5 h-3.5 rounded" value="${p.id}" onchange="window.updateBtnHapusPesertaTerpilih()"></td>
                         <td class="p-3 font-mono font-bold text-indigo-300 tracking-wide">${p.username}</td><td class="p-3 font-semibold text-white tracking-tight">${p.nama}</td><td class="p-3 text-center font-bold text-slate-300">${p.kelas}</td><td class="p-3 text-center font-mono text-slate-400">${p.password||'A7K9M2'}</td>
@@ -806,24 +885,38 @@
                             <button onclick="window.hapusPeserta('${p.id}')" class="px-2 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded text-[10px] transition"><i class="fa-solid fa-trash"></i></button>
                         </td></tr>`;
                 });
-                html += `</tbody></table></div></div>`;
+                html += `</tbody></table></div></div>
+                
+                <div class="flex flex-col sm:flex-row justify-between items-center mt-4 bg-slate-900/50 p-3 rounded-xl border border-slate-800 gap-3">
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">
+                        Total: ${totalItems} Siswa
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <button onclick="window.loadDatabasePeserta('${filterTingkat}', '${filterKelas}', ${page - 1})" ${page <= 1 ? 'disabled' : ''} class="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition ${page <= 1 ? 'bg-slate-800 text-slate-600 cursor-not-allowed opacity-50' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md'}"><i class="fa-solid fa-chevron-left mr-1"></i> Prev</button>
+                        
+                        <span class="text-[10px] font-bold text-slate-300 tracking-widest whitespace-nowrap">HAL ${page} / ${totalPages}</span>
+
+                        <button onclick="window.loadDatabasePeserta('${filterTingkat}', '${filterKelas}', ${page + 1})" ${page >= totalPages ? 'disabled' : ''} class="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition ${page >= totalPages ? 'bg-slate-800 text-slate-600 cursor-not-allowed opacity-50' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md'}">Next <i class="fa-solid fa-chevron-right ml-1"></i></button>
+                    </div>
+                </div>
+                `;
             }
             const elem = document.getElementById('peserta-list-container'); if(elem) elem.innerHTML = html;
         };
 
-        window.generateSingleStudentPassword = function(id) { let idx = window.appData.peserta.findIndex(x => String(x.id) === String(id)); if (idx > -1) { const newPass = window.generateRandomPassword(); window.appData.peserta[idx].password = newPass; window.saveLocalData('peserta'); window.showNotification(`Password baru: ${newPass}`); window.loadDatabasePeserta(window.currentFilterTingkat); } };
-        window.generateAllStudentPasswords = function() { window.showConfirm("Acak password untuk SEMUA siswa di database?", () => { window.appData.peserta.forEach(p => { p.password = window.generateRandomPassword(); }); window.saveLocalData('peserta'); window.showNotification("Berhasil mengacak password seluruh siswa!"); window.loadDatabasePeserta(window.currentFilterTingkat); }); };
+        window.generateSingleStudentPassword = function(id) { let idx = window.appData.peserta.findIndex(x => String(x.id) === String(id)); if (idx > -1) { const newPass = window.generateRandomPassword(); window.appData.peserta[idx].password = newPass; window.saveLocalData('peserta'); window.showNotification(`Password baru: ${newPass}`); window.loadDatabasePeserta(); } };
+        window.generateAllStudentPasswords = function() { window.showConfirm("Acak password untuk SEMUA siswa di database?", () => { window.appData.peserta.forEach(p => { p.password = window.generateRandomPassword(); }); window.saveLocalData('peserta'); window.showNotification("Berhasil mengacak password seluruh siswa!"); window.loadDatabasePeserta(); }); };
 
-        window.simpanPeserta = function(e) { e.preventDefault(); const username = document.getElementById('p-username').value, nama = document.getElementById('p-nama').value, tingkat = document.getElementById('p-tingkat').value, kelas = document.getElementById('p-kelas').value.toUpperCase(), password = window.generateRandomPassword(); const newData = { id: window.generateId(), username, nama, tingkat, kelas, password, status_blokir: 'AKTIF' }; window.appData.peserta.push(newData); window.saveLocalData('peserta'); document.getElementById('app-modal').classList.add('hidden'); window.loadDatabasePeserta(window.currentFilterTingkat); };
+        window.simpanPeserta = function(e) { e.preventDefault(); const username = document.getElementById('p-username').value, nama = document.getElementById('p-nama').value, tingkat = document.getElementById('p-tingkat').value, kelas = document.getElementById('p-kelas').value.toUpperCase(), password = window.generateRandomPassword(); const newData = { id: window.generateId(), username, nama, tingkat, kelas, password, status_blokir: 'AKTIF' }; window.appData.peserta.push(newData); window.saveLocalData('peserta'); document.getElementById('app-modal').classList.add('hidden'); window.loadDatabasePeserta(); };
         window.openNewPesertaModal = function() { let modal = document.getElementById('app-modal'); if (!modal) { modal = document.createElement('div'); modal.id = 'app-modal'; document.body.appendChild(modal); } modal.className = 'fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/80 p-4 backdrop-blur-md'; modal.innerHTML = `<div class="glass-card-dark p-6 rounded-3xl max-w-md w-full border border-slate-700 shadow-2xl"><h3 class="text-lg font-bold text-white mb-4 font-heading tracking-tight">Tambah Siswa</h3><form onsubmit="window.simpanPeserta(event)" class="space-y-3"><div><label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Username</label><input type="text" id="p-username" required class="w-full p-2 glass-input rounded-xl text-[11px] font-mono"></div><div><label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Nama</label><input type="text" id="p-nama" required class="w-full p-2 glass-input rounded-xl text-[11px]"></div><div class="grid grid-cols-2 gap-3"><div><label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Tingkat</label><select id="p-tingkat" class="w-full p-2 glass-input rounded-xl text-[11px] bg-slate-900"><option value="7">7</option><option value="8">8</option><option value="9">9</option></select></div><div><label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Kelas</label><input type="text" id="p-kelas" required class="w-full p-2 glass-input rounded-xl text-[11px]"></div></div><div class="flex gap-2 pt-3"><button type="button" onclick="document.getElementById('app-modal').classList.add('hidden')" class="flex-1 py-1.5 bg-slate-800 text-slate-300 font-bold uppercase tracking-wider rounded-xl text-[10px]">Batal</button><button type="submit" class="flex-1 py-1.5 gradient-btn text-white font-bold uppercase tracking-wider rounded-xl text-[10px]">Simpan</button></div></form></div>`; modal.classList.remove('hidden'); };
         window.openEditPesertaModal = function(id) { const p = window.appData.peserta.find(x => String(x.id) === String(id)); if(!p) return; let modal = document.getElementById('app-modal'); if (!modal) { modal = document.createElement('div'); modal.id = 'app-modal'; document.body.appendChild(modal); } modal.className = 'fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/80 p-4 backdrop-blur-md'; modal.innerHTML = `<div class="glass-card-dark p-6 rounded-3xl max-w-md w-full border border-slate-700 shadow-2xl"><h3 class="text-lg font-bold text-white mb-4 font-heading tracking-tight">Edit Siswa</h3><form onsubmit="window.updatePeserta(event, '${id}')" class="space-y-3"><div><label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Username</label><input type="text" id="ep-username" value="${p.username}" required class="w-full p-2 glass-input rounded-xl text-[11px] font-mono"></div><div><label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Nama</label><input type="text" id="ep-nama" value="${p.nama}" required class="w-full p-2 glass-input rounded-xl text-[11px]"></div><div class="grid grid-cols-2 gap-3"><div><label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Tingkat</label><select id="ep-tingkat" class="w-full p-2 glass-input rounded-xl text-[11px] bg-slate-900"><option value="7" ${p.tingkat==='7'?'selected':''}>7</option><option value="8" ${p.tingkat==='8'?'selected':''}>8</option><option value="9" ${p.tingkat==='9'?'selected':''}>9</option></select></div><div><label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Kelas</label><input type="text" id="ep-kelas" value="${p.kelas}" required class="w-full p-2 glass-input rounded-xl text-[11px]"></div></div><div class="flex gap-2 pt-3"><button type="button" onclick="document.getElementById('app-modal').classList.add('hidden')" class="flex-1 py-1.5 bg-slate-800 text-slate-300 font-bold uppercase tracking-wider rounded-xl text-[10px]">Batal</button><button type="submit" class="flex-1 py-1.5 gradient-btn text-white font-bold uppercase tracking-wider rounded-xl text-[10px]">Simpan</button></div></form></div>`; modal.classList.remove('hidden'); };
-        window.updatePeserta = function(e, id) { e.preventDefault(); const username = document.getElementById('ep-username').value, nama = document.getElementById('ep-nama').value, tingkat = document.getElementById('ep-tingkat').value, kelas = document.getElementById('ep-kelas').value.toUpperCase(); let idx = window.appData.peserta.findIndex(x => x.id === id); if (idx > -1) { window.appData.peserta[idx] = { ...window.appData.peserta[idx], username, nama, tingkat, kelas }; window.saveLocalData('peserta'); document.getElementById('app-modal').classList.add('hidden'); window.loadDatabasePeserta(window.currentFilterTingkat); } };
-        window.hapusPeserta = function(id) { window.showPasswordConfirm("Hapus data siswa ini secara permanen?", () => { window.appData.peserta = window.appData.peserta.filter(x => x.id !== id); window.saveLocalData('peserta'); window.loadDatabasePeserta(window.currentFilterTingkat); }); };
-        window.hapusSemuaPeserta = function() { window.showPasswordConfirm("PERINGATAN! Hapus SEMUA siswa di database?", () => { window.appData.peserta = []; window.saveLocalData('peserta'); window.loadDatabasePeserta(window.currentFilterTingkat); }); };
+        window.updatePeserta = function(e, id) { e.preventDefault(); const username = document.getElementById('ep-username').value, nama = document.getElementById('ep-nama').value, tingkat = document.getElementById('ep-tingkat').value, kelas = document.getElementById('ep-kelas').value.toUpperCase(); let idx = window.appData.peserta.findIndex(x => x.id === id); if (idx > -1) { window.appData.peserta[idx] = { ...window.appData.peserta[idx], username, nama, tingkat, kelas }; window.saveLocalData('peserta'); document.getElementById('app-modal').classList.add('hidden'); window.loadDatabasePeserta(); } };
+        window.hapusPeserta = function(id) { window.showPasswordConfirm("Hapus data siswa ini secara permanen?", () => { window.appData.peserta = window.appData.peserta.filter(x => x.id !== id); window.saveLocalData('peserta'); window.loadDatabasePeserta(); }); };
+        window.hapusSemuaPeserta = function() { window.showPasswordConfirm("PERINGATAN! Hapus SEMUA siswa di database?", () => { window.appData.peserta = []; window.saveLocalData('peserta'); window.loadDatabasePeserta(); }); };
 
         window.toggleAllPeserta = function(e) { document.querySelectorAll('.chk-peserta').forEach(chk => chk.checked = e.target.checked); window.updateBtnHapusPesertaTerpilih(); };
         window.updateBtnHapusPesertaTerpilih = function() { const count = document.querySelectorAll('.chk-peserta:checked').length; const btn = document.getElementById('btn-hapus-peserta'); if (btn) { if (count > 0) { btn.classList.remove('hidden'); document.getElementById('count-peserta-terpilih').innerText = count; } else { btn.classList.add('hidden'); } } };
-        window.hapusPesertaTerpilih = function() { const checked = document.querySelectorAll('.chk-peserta:checked'); if (checked.length === 0) return; window.showPasswordConfirm(`Hapus ${checked.length} siswa terpilih secara permanen?`, () => { const ids = Array.from(checked).map(chk => chk.value); window.appData.peserta = window.appData.peserta.filter(p => !ids.includes(p.id)); window.saveLocalData('peserta'); window.loadDatabasePeserta(window.currentFilterTingkat); }); };
+        window.hapusPesertaTerpilih = function() { const checked = document.querySelectorAll('.chk-peserta:checked'); if (checked.length === 0) return; window.showPasswordConfirm(`Hapus ${checked.length} siswa terpilih secara permanen?`, () => { const ids = Array.from(checked).map(chk => chk.value); window.appData.peserta = window.appData.peserta.filter(p => !ids.includes(p.id)); window.saveLocalData('peserta'); window.loadDatabasePeserta(); }); };
         window.exportDataSiswaExcel = function() { if(!window.appData.peserta.length) return window.showNotification("Data Kosong"); const ws = XLSX.utils.json_to_sheet(window.appData.peserta); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Siswa"); XLSX.writeFile(wb, "Data_Siswa.xlsx"); };
         window.downloadExcelTemplatePeserta = function() { const data = [{ username: "User123", nama: "Siswa A", tingkat: "7", kelas: "7A" }]; const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Template"); XLSX.writeFile(wb, "Template_Siswa.xlsx"); };
         window.handleExcelImportPeserta = function(e) {
