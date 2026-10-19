@@ -76,7 +76,7 @@
             kodePos: "45193", namaKasek: "Kepala Sekolah, M.Pd.", nipKasek: "196501011988031005",
             namaPanitia: "Nama Ketua Panitia, S.Pd.", nipPanitia: "198001012005011001",
             namaSekretaris: "Nama Sekretaris, S.Pd.", nipSekretaris: "198501012009012002",
-            tahunPelajaran: "2026/2027", supabaseUrl: "https://rpkmiuocsnajgizmbypd.supabase.co", supabaseKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwa21pdW9jc25hamdpem1ieXBkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwOTc1ODEsImV4cCI6MjEwNzY3MzU4MX0.Fl3MtsvA4TLed5RxuIslMnXYiB_tLysP46JgRUUZ4o4", useSupabase: true
+            tahunPelajaran: "2026/2027", supabaseUrl: "", supabaseKey: "", useSupabase: false
         };
 
         window.appData = { soal: [], peserta: [], jadwal: [], hasil: [], beritaAcara: [], pengawas: [] };
@@ -248,11 +248,11 @@
             'nav-dashboard': () => window.loadAdminDashboard(),
             'nav-soal': () => window.loadManajemenSoal('semua'),
             'nav-jadwal': () => window.loadManajemenJadwal(),
-            'nav-peserta': () => window.loadDatabasePeserta('semua'),
+            'nav-peserta': () => window.loadDatabasePeserta('7'),
             'nav-pengawas': () => window.loadDataPengawas(),
             'nav-daftar-hadir': () => window.loadDaftarHadir('peserta'),
             'nav-hadir-gabung': () => window.loadHadirDanGabung(),
-            'nav-kartu': () => window.loadKartuUjian(),
+            'nav-kartu': () => window.loadRuangDanKartu('ruang'),
             'nav-nilai': () => window.loadRekapNilai('semua'),
             'nav-ba': () => window.currentUser.role === 'admin' ? window.loadAdminDaftarBeritaAcara() : window.loadPengawasMode(),
             'nav-pengaturan-sekolah': () => window.loadPengaturanSekolahDanPejabat('sekolah'),
@@ -306,6 +306,14 @@
 
             if (String(foundPeserta.status_blokir || 'AKTIF').toUpperCase() === 'BLOKIR') { showNotification('AKUN ANDA DIBLOKIR!'); return; }
 
+            if (foundPeserta.status_login === 'AKTIF') {
+                showNotification('Akun sedang AKTIF di perangkat lain! Lapor Pengawas untuk mereset akun Anda.');
+                return;
+            }
+            
+            foundPeserta.status_login = 'AKTIF';
+            window.saveLocalData('peserta');
+
             window.currentUser = { nomor: username, nama: foundPeserta.nama, tingkat: foundPeserta.tingkat, kelas: foundPeserta.kelas, role: 'siswa' };
             sessionStorage.setItem('cbt_session', JSON.stringify(window.currentUser));
             window.violationCount = 0; window.loadSiswaSelectMapelView();
@@ -329,6 +337,14 @@
         }
 
         window.handleLogout = function(isPopState = false) {
+            if (window.currentUser && window.currentUser.role === 'siswa') {
+                let idx = window.appData.peserta.findIndex(p => p.username === window.currentUser.nomor);
+                if (idx > -1) {
+                    window.appData.peserta[idx].status_login = 'OFFLINE';
+                    window.saveLocalData('peserta');
+                }
+            }
+
             sessionStorage.removeItem('cbt_session');
             window.currentUser = null; window.isExamActive = false; 
             if(window.examTimerInterval) clearInterval(window.examTimerInterval);
@@ -380,8 +396,8 @@
                 navMenu.innerHTML += createNavLink('nav-peserta', 'fa-users', 'Data Siswa');
                 navMenu.innerHTML += createNavLink('nav-pengawas', 'fa-user-tie', 'Data Pengawas');
                 navMenu.innerHTML += createNavLink('nav-daftar-hadir', 'fa-clipboard-list', 'Daftar Hadir');
-                navMenu.innerHTML += createNavLink('nav-hadir-gabung', 'fa-unlock-keyhole', 'Buka Blokir Siswa');
-                navMenu.innerHTML += createNavLink('nav-kartu', 'fa-id-card-clip', 'Kartu Peserta');
+                navMenu.innerHTML += createNavLink('nav-hadir-gabung', 'fa-unlock-keyhole', 'Status & Reset Login');
+                navMenu.innerHTML += createNavLink('nav-kartu', 'fa-id-card-clip', 'Ruang & Kartu');
                 navMenu.innerHTML += createNavLink('nav-nilai', 'fa-chart-bar', 'Rekap Nilai');
                 navMenu.innerHTML += createNavLink('nav-ba', 'fa-file-signature', 'Rekap Berita Acara');
                 navMenu.innerHTML += createNavLink('nav-pengaturan-sekolah', 'fa-school-flag', 'Profil & Kepanitiaan');
@@ -436,6 +452,7 @@
                 const totalSelesai = window.appData.hasil.length;
                 const belumHadir = Math.max(0, totalPeserta - totalSelesai);
                 const totalTerblokir = window.appData.peserta.filter(p => String(p.status_blokir || '').toUpperCase() === 'BLOKIR').length;
+                const totalAktif = window.appData.peserta.filter(p => p.status_login === 'AKTIF').length;
 
                 container.innerHTML = `
                     <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4"><div><h1 class="text-2xl font-black text-white font-heading tracking-tight">Dashboard Utama</h1><p class="text-[11px] text-slate-400 mt-1 tracking-wide">Ringkasan Aktivitas Ujian (Auto-refresh 60s)</p></div></div>
@@ -445,7 +462,7 @@
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
                         <div class="glass-card-dark p-5 rounded-3xl border border-slate-800 flex items-center space-x-4 shadow-lg"><div class="w-12 h-12 bg-indigo-500/10 text-indigo-400 rounded-2xl flex items-center justify-center text-xl"><i class="fa-solid fa-users"></i></div><div><p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Kehadiran (Total)</p><h3 class="text-xl font-black text-white mt-0.5 tracking-tight">${totalPeserta}</h3></div></div>
-                        <div class="glass-card-dark p-5 rounded-3xl border border-slate-800 flex items-center space-x-4 shadow-lg"><div class="w-12 h-12 bg-amber-500/10 text-amber-400 rounded-2xl flex items-center justify-center text-xl"><i class="fa-solid fa-laptop-code"></i></div><div><p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Aktif Mengerjakan</p><h3 class="text-xl font-black text-amber-400 mt-0.5 tracking-tight">~</h3></div></div>
+                        <div class="glass-card-dark p-5 rounded-3xl border border-slate-800 flex items-center space-x-4 shadow-lg"><div class="w-12 h-12 bg-amber-500/10 text-amber-400 rounded-2xl flex items-center justify-center text-xl"><i class="fa-solid fa-laptop-code"></i></div><div><p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Aktif Mengerjakan</p><h3 class="text-xl font-black text-amber-400 mt-0.5 tracking-tight">${totalAktif}</h3></div></div>
                         <div class="glass-card-dark p-5 rounded-3xl border border-slate-800 flex items-center space-x-4 shadow-lg"><div class="w-12 h-12 bg-emerald-500/10 text-emerald-400 rounded-2xl flex items-center justify-center text-xl"><i class="fa-solid fa-circle-check"></i></div><div><p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Selesai</p><h3 class="text-xl font-black text-emerald-400 mt-0.5 tracking-tight">${totalSelesai}</h3></div></div>
                         <div class="glass-card-dark p-5 rounded-3xl border border-slate-800 flex items-center space-x-4 shadow-lg"><div class="w-12 h-12 bg-red-500/10 text-red-400 rounded-2xl flex items-center justify-center text-xl"><i class="fa-solid fa-user-slash"></i></div><div><p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Ketidakhadiran</p><h3 class="text-xl font-black text-red-400 mt-0.5 tracking-tight">${belumHadir}</h3></div></div>
                         <div class="glass-card-dark p-5 rounded-3xl border border-slate-800 flex items-center space-x-4 shadow-lg"><div class="w-12 h-12 bg-pink-500/10 text-pink-400 rounded-2xl flex items-center justify-center text-xl"><i class="fa-solid fa-ban"></i></div><div><p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Siswa Terblokir</p><h3 class="text-xl font-black text-pink-400 mt-0.5 tracking-tight">${totalTerblokir}</h3></div></div>
@@ -857,6 +874,7 @@
                     </div>
                     <div class="flex gap-2 flex-wrap">
                         <button onclick="window.generateAllStudentPasswords()" class="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-[10px] uppercase tracking-wider shadow-md"><i class="fa-solid fa-key mr-1"></i> Acak Password</button>
+                        <button onclick="window.bukaModalSetRuang()" id="btn-set-ruang" class="hidden px-2.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-lg text-[10px] uppercase tracking-wider shadow-md"><i class="fa-solid fa-door-open mr-1"></i> Set Ruang (<span id="count-ruang-terpilih">0</span>)</button>
                         <button onclick="window.hapusPesertaTerpilih()" id="btn-hapus-peserta" class="hidden px-2.5 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg text-[10px] uppercase tracking-wider shadow-md">Hapus (<span id="count-peserta-terpilih">0</span>)</button>
                         <button onclick="window.openNewPesertaModal()" class="px-2.5 py-1.5 bg-indigo-600 text-white font-bold rounded-lg text-[10px] uppercase tracking-wider shadow-md"><i class="fa-solid fa-plus mr-1"></i> Tambah</button>
                         <button onclick="window.exportDataSiswaExcel()" class="px-2.5 py-1.5 bg-emerald-600 text-white font-bold rounded-lg text-[10px] uppercase tracking-wider shadow-md"><i class="fa-solid fa-file-excel mr-1"></i> Export</button>
@@ -874,11 +892,11 @@
             } else {
                 html = `
                     <div class="flex items-center px-3 mb-2 bg-slate-900/50 p-2.5 rounded-xl border border-slate-800"><input type="checkbox" onchange="window.toggleAllPeserta(event)" class="cursor-pointer accent-indigo-500 w-3.5 h-3.5 rounded mr-3"><span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pilih Semua Siswa (Hal ${page})</span></div>
-                    <div class="glass-card-dark rounded-2xl overflow-hidden border border-slate-800"><div class="overflow-x-auto"><table class="w-full text-left text-[11px]"><thead><tr class="bg-slate-900 text-slate-400 font-bold uppercase tracking-wider"><th class="p-3 w-10"></th><th class="p-3">Username</th><th class="p-3">Nama</th><th class="p-3 text-center">Kelas</th><th class="p-3 text-center">Password</th><th class="p-3 text-center">Aksi</th></tr></thead><tbody class="divide-y divide-slate-800">`;
+                    <div class="glass-card-dark rounded-2xl overflow-hidden border border-slate-800"><div class="overflow-x-auto"><table class="w-full text-left text-[11px]"><thead><tr class="bg-slate-900 text-slate-400 font-bold uppercase tracking-wider"><th class="p-3 w-10"></th><th class="p-3">Username</th><th class="p-3">Nama</th><th class="p-3 text-center">Kelas & Ruang</th><th class="p-3 text-center">Password</th><th class="p-3 text-center">Aksi</th></tr></thead><tbody class="divide-y divide-slate-800">`;
                 paginatedData.forEach(p => {
                     html += `<tr>
                         <td class="p-3"><input type="checkbox" class="chk-peserta cursor-pointer accent-indigo-500 w-3.5 h-3.5 rounded" value="${p.id}" onchange="window.updateBtnHapusPesertaTerpilih()"></td>
-                        <td class="p-3 font-mono font-bold text-indigo-300 tracking-wide">${p.username}</td><td class="p-3 font-semibold text-white tracking-tight">${p.nama}</td><td class="p-3 text-center font-bold text-slate-300">${p.kelas}</td><td class="p-3 text-center font-mono text-slate-400">${p.password||'A7K9M2'}</td>
+                        <td class="p-3 font-mono font-bold text-indigo-300 tracking-wide">${p.username}</td><td class="p-3 font-semibold text-white tracking-tight">${p.nama}</td><td class="p-3 text-center font-bold text-slate-300">${p.kelas}<br><span class="text-[9px] text-sky-400 font-bold">${p.ruang || 'Belum Diatur'}</span></td><td class="p-3 text-center font-mono text-slate-400">${p.password||'A7K9M2'}</td>
                         <td class="p-3 text-center space-x-1">
                             <button onclick="window.generateSingleStudentPassword('${p.id}')" title="Acak Password" class="px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 rounded text-[10px] transition font-bold uppercase"><i class="fa-solid fa-key mr-1"></i> Acak</button>
                             <button onclick="window.openEditPesertaModal('${p.id}')" title="Edit" class="px-2 py-1 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 rounded text-[10px] transition"><i class="fa-solid fa-pen"></i></button>
@@ -912,10 +930,55 @@
         window.openEditPesertaModal = function(id) { const p = window.appData.peserta.find(x => String(x.id) === String(id)); if(!p) return; let modal = document.getElementById('app-modal'); if (!modal) { modal = document.createElement('div'); modal.id = 'app-modal'; document.body.appendChild(modal); } modal.className = 'fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/80 p-4 backdrop-blur-md'; modal.innerHTML = `<div class="glass-card-dark p-6 rounded-3xl max-w-md w-full border border-slate-700 shadow-2xl"><h3 class="text-lg font-bold text-white mb-4 font-heading tracking-tight">Edit Siswa</h3><form onsubmit="window.updatePeserta(event, '${id}')" class="space-y-3"><div><label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Username</label><input type="text" id="ep-username" value="${p.username}" required class="w-full p-2 glass-input rounded-xl text-[11px] font-mono"></div><div><label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Nama</label><input type="text" id="ep-nama" value="${p.nama}" required class="w-full p-2 glass-input rounded-xl text-[11px]"></div><div class="grid grid-cols-2 gap-3"><div><label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Tingkat</label><select id="ep-tingkat" class="w-full p-2 glass-input rounded-xl text-[11px] bg-slate-900"><option value="7" ${p.tingkat==='7'?'selected':''}>7</option><option value="8" ${p.tingkat==='8'?'selected':''}>8</option><option value="9" ${p.tingkat==='9'?'selected':''}>9</option></select></div><div><label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Kelas</label><input type="text" id="ep-kelas" value="${p.kelas}" required class="w-full p-2 glass-input rounded-xl text-[11px]"></div></div><div class="flex gap-2 pt-3"><button type="button" onclick="document.getElementById('app-modal').classList.add('hidden')" class="flex-1 py-1.5 bg-slate-800 text-slate-300 font-bold uppercase tracking-wider rounded-xl text-[10px]">Batal</button><button type="submit" class="flex-1 py-1.5 gradient-btn text-white font-bold uppercase tracking-wider rounded-xl text-[10px]">Simpan</button></div></form></div>`; modal.classList.remove('hidden'); };
         window.updatePeserta = function(e, id) { e.preventDefault(); const username = document.getElementById('ep-username').value, nama = document.getElementById('ep-nama').value, tingkat = document.getElementById('ep-tingkat').value, kelas = document.getElementById('ep-kelas').value.toUpperCase(); let idx = window.appData.peserta.findIndex(x => x.id === id); if (idx > -1) { window.appData.peserta[idx] = { ...window.appData.peserta[idx], username, nama, tingkat, kelas }; window.saveLocalData('peserta'); document.getElementById('app-modal').classList.add('hidden'); window.loadDatabasePeserta(); } };
         window.hapusPeserta = function(id) { window.showPasswordConfirm("Hapus data siswa ini secara permanen?", () => { window.appData.peserta = window.appData.peserta.filter(x => x.id !== id); window.saveLocalData('peserta'); window.loadDatabasePeserta(); }); };
-        window.hapusSemuaPeserta = function() { window.showPasswordConfirm("PERINGATAN! Hapus SEMUA siswa di database?", () => { window.appData.peserta = []; window.saveLocalData('peserta'); window.loadDatabasePeserta(); }); };
+        
+        window.bukaModalSetRuang = function() {
+            const checked = document.querySelectorAll('.chk-peserta:checked');
+            if (checked.length === 0) return;
+            let modal = document.getElementById('app-modal'); if (!modal) { modal = document.createElement('div'); modal.id = 'app-modal'; document.body.appendChild(modal); }
+            modal.className = 'fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/80 p-4 backdrop-blur-md';
+            modal.innerHTML = `
+                <div class="glass-card-dark p-6 rounded-3xl max-w-sm w-full border border-slate-700 shadow-2xl text-center space-y-4">
+                    <h3 class="text-lg font-bold text-white mb-2 font-heading tracking-tight"><i class="fa-solid fa-door-open text-sky-400 mr-2"></i>Atur Ruang Ujian</h3>
+                    <p class="text-[11px] text-slate-300">Pilih ruang untuk ${checked.length} siswa terpilih:</p>
+                    <select id="pilihan-ruang-massal" class="w-full p-3 glass-input rounded-xl text-[12px] bg-slate-900 font-bold">
+                        ${window.populateRuangOptions()}
+                    </select>
+                    <div class="flex gap-2 pt-3">
+                        <button onclick="document.getElementById('app-modal').classList.add('hidden')" class="flex-1 py-2 bg-slate-800 text-slate-300 rounded-xl text-[10px] font-bold uppercase tracking-wider hover:bg-slate-700 transition">Batal</button>
+                        <button onclick="window.simpanRuangMassal()" class="flex-1 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider shadow-lg transition">Simpan Ruang</button>
+                    </div>
+                </div>
+            `;
+            modal.classList.remove('hidden');
+        };
+
+        window.simpanRuangMassal = function() {
+            const checked = document.querySelectorAll('.chk-peserta:checked');
+            const ruang = document.getElementById('pilihan-ruang-massal').value;
+            const ids = Array.from(checked).map(chk => chk.value);
+            
+            window.appData.peserta.forEach(p => {
+                if (ids.includes(p.id)) { p.ruang = ruang; }
+            });
+            window.saveLocalData('peserta');
+            document.getElementById('app-modal').classList.add('hidden');
+            window.showNotification(`Berhasil memindahkan ${ids.length} siswa ke ${ruang}`);
+            window.loadDatabasePeserta(window.currentFilterTingkat, window.currentFilterKelasPeserta, window.currentPagePeserta);
+        };
 
         window.toggleAllPeserta = function(e) { document.querySelectorAll('.chk-peserta').forEach(chk => chk.checked = e.target.checked); window.updateBtnHapusPesertaTerpilih(); };
-        window.updateBtnHapusPesertaTerpilih = function() { const count = document.querySelectorAll('.chk-peserta:checked').length; const btn = document.getElementById('btn-hapus-peserta'); if (btn) { if (count > 0) { btn.classList.remove('hidden'); document.getElementById('count-peserta-terpilih').innerText = count; } else { btn.classList.add('hidden'); } } };
+        window.updateBtnHapusPesertaTerpilih = function() { 
+            const count = document.querySelectorAll('.chk-peserta:checked').length; 
+            const btnHapus = document.getElementById('btn-hapus-peserta'); 
+            const btnRuang = document.getElementById('btn-set-ruang');
+            if (count > 0) { 
+                if (btnHapus) { btnHapus.classList.remove('hidden'); document.getElementById('count-peserta-terpilih').innerText = count; } 
+                if (btnRuang) { btnRuang.classList.remove('hidden'); document.getElementById('count-ruang-terpilih').innerText = count; }
+            } else { 
+                if (btnHapus) btnHapus.classList.add('hidden'); 
+                if (btnRuang) btnRuang.classList.add('hidden');
+            } 
+        };
         window.hapusPesertaTerpilih = function() { const checked = document.querySelectorAll('.chk-peserta:checked'); if (checked.length === 0) return; window.showPasswordConfirm(`Hapus ${checked.length} siswa terpilih secara permanen?`, () => { const ids = Array.from(checked).map(chk => chk.value); window.appData.peserta = window.appData.peserta.filter(p => !ids.includes(p.id)); window.saveLocalData('peserta'); window.loadDatabasePeserta(); }); };
         window.exportDataSiswaExcel = function() { if(!window.appData.peserta.length) return window.showNotification("Data Kosong"); const ws = XLSX.utils.json_to_sheet(window.appData.peserta); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Siswa"); XLSX.writeFile(wb, "Data_Siswa.xlsx"); };
         window.downloadExcelTemplatePeserta = function() { const data = [{ username: "User123", nama: "Siswa A", tingkat: "7", kelas: "7A" }]; const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Template"); XLSX.writeFile(wb, "Template_Siswa.xlsx"); };
@@ -1196,40 +1259,176 @@
         // --- LAIN-LAIN ---
         window.loadHadirDanGabung = function() {
             window.currentRoute = 'blokir'; const area = document.getElementById('content-container'); if(!area) return;
-            area.innerHTML = `<div class="mb-6 flex justify-between items-center"><h1 class="text-2xl font-black text-white font-heading tracking-tight">Buka Blokir Siswa</h1><button onclick="window.bukaSemuaBlokir()" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[10px] uppercase tracking-wider shadow-lg transition">Buka Semua</button></div><div id="blokir-list-container"></div>`;
-            const filtered = window.appData.peserta.filter(p => String(p.status_blokir||'').toUpperCase() === 'BLOKIR'); let html = '';
-            if(filtered.length === 0) { html = `<div class="glass-card-dark p-6 rounded-2xl text-center text-emerald-400 font-bold text-[11px]">Tidak ada siswa terblokir.</div>`; }
+            area.innerHTML = `<div class="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4"><div><h1 class="text-2xl font-black text-white font-heading tracking-tight">Status Siswa & Reset</h1><p class="text-[11px] text-slate-400 mt-1 tracking-wide">Pantau siswa aktif dan reset akun yang nyangkut/terblokir.</p></div><div class="flex gap-2"><button onclick="window.resetSemuaLoginSiswa()" class="px-2.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-lg text-[10px] uppercase tracking-wider shadow-lg transition"><i class="fa-solid fa-power-off mr-1"></i> Reset Semua Login</button><button onclick="window.bukaSemuaBlokir()" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[10px] uppercase tracking-wider shadow-lg transition"><i class="fa-solid fa-unlock mr-1"></i> Buka Semua Blokir</button></div></div><div id="blokir-list-container"></div>`;
+            const filtered = window.appData.peserta.filter(p => String(p.status_blokir||'').toUpperCase() === 'BLOKIR' || p.status_login === 'AKTIF'); 
+            let html = '';
+            if(filtered.length === 0) { html = `<div class="glass-card-dark p-6 rounded-2xl text-center text-emerald-400 font-bold text-[11px]">Semua siswa offline dan aman (tidak ada yang terblokir atau nyangkut).</div>`; }
             else {
-                html = `<div class="glass-card-dark rounded-2xl overflow-hidden border border-slate-800"><div class="overflow-x-auto"><table class="w-full text-left text-[11px]"><thead><tr class="bg-slate-900 text-slate-400 font-bold uppercase tracking-wider"><th class="p-3">Username</th><th class="p-3">Nama</th><th class="p-3 text-center">Kelas</th><th class="p-3 text-center">Aksi</th></tr></thead><tbody class="divide-y divide-slate-800">`;
-                filtered.forEach(p => { html += `<tr><td class="p-3 font-mono text-indigo-300 font-bold tracking-wide">${p.username}</td><td class="p-3 text-white font-semibold tracking-tight">${p.nama}</td><td class="p-3 text-center text-slate-300 font-bold">${p.kelas}</td><td class="p-3 text-center"><button onclick="window.toggleBlokirPeserta('${p.username}')" class="px-2.5 py-1 bg-emerald-500/20 text-emerald-400 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-500/30 transition shadow"><i class="fa-solid fa-unlock mr-1"></i> Buka</button></td></tr>`; });
+                html = `<div class="glass-card-dark rounded-2xl overflow-hidden border border-slate-800"><div class="overflow-x-auto"><table class="w-full text-left text-[11px]"><thead><tr class="bg-slate-900 text-slate-400 font-bold uppercase tracking-wider"><th class="p-3">Username</th><th class="p-3">Nama</th><th class="p-3 text-center">Kelas</th><th class="p-3 text-center">Status</th><th class="p-3 text-center">Aksi</th></tr></thead><tbody class="divide-y divide-slate-800">`;
+                filtered.forEach(p => { 
+                    let statusBadge = '';
+                    if (String(p.status_blokir||'').toUpperCase() === 'BLOKIR') {
+                        statusBadge = '<span class="px-2 py-0.5 bg-red-500/20 text-red-400 rounded text-[9px] font-bold uppercase tracking-widest">TERBLOKIR</span>';
+                    } else if (p.status_login === 'AKTIF') {
+                        statusBadge = '<span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-[9px] font-bold uppercase tracking-widest animate-pulse">SEDANG LOGIN</span>';
+                    }
+                    html += `<tr><td class="p-3 font-mono text-indigo-300 font-bold tracking-wide">${p.username}</td><td class="p-3 text-white font-semibold tracking-tight">${p.nama}</td><td class="p-3 text-center text-slate-300 font-bold">${p.kelas}</td><td class="p-3 text-center">${statusBadge}</td><td class="p-3 text-center"><button onclick="window.resetAkunSiswa('${p.username}')" class="px-2.5 py-1 bg-amber-500/20 text-amber-400 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-amber-500/30 transition shadow"><i class="fa-solid fa-rotate-right mr-1"></i> Reset</button></td></tr>`; 
+                });
                 html += `</tbody></table></div></div>`;
             }
             const elem = document.getElementById('blokir-list-container'); if(elem) elem.innerHTML = html;
         };
 
-        window.loadKartuUjian = function() {
-            window.currentRoute = 'kartu'; const container = document.getElementById('content-container');
-            container.innerHTML = `
-                <div class="mb-6"><h1 class="text-2xl font-black text-white font-heading tracking-tight">Cetak Kartu Peserta Ujian</h1></div>
-                <div class="glass-card-dark p-6 rounded-3xl border border-slate-800 max-w-2xl space-y-4">
-                    <div class="grid grid-cols-1 gap-4">
-                        <div>
-                            <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pilih Tingkat Kelas</label>
-                            <select id="kt-tingkat" class="w-full p-2.5 glass-input rounded-xl text-[11px] bg-slate-900">
-                                <option value="semua">Semua Tingkat</option>
-                                <option value="7">Kelas 7</option>
-                                <option value="8">Kelas 8</option>
-                                <option value="9">Kelas 9</option>
-                            </select>
+        window.resetAkunSiswa = function(username) {
+            let idx = window.appData.peserta.findIndex(p => p.username === username);
+            if(idx > -1) { 
+                window.appData.peserta[idx].status_blokir = 'AKTIF'; 
+                window.appData.peserta[idx].status_login = 'OFFLINE'; 
+                window.saveLocalData('peserta'); 
+                window.showNotification('Akun ' + username + ' berhasil direset!');
+                window.loadHadirDanGabung(); 
+            }
+        };
+        
+        window.bukaSemuaBlokir = function() {
+            window.showConfirm("Buka blokir semua siswa?", () => {
+                window.appData.peserta.forEach(p => p.status_blokir = 'AKTIF');
+                window.saveLocalData('peserta');
+                window.loadHadirDanGabung();
+            });
+        };
+
+        window.resetSemuaLoginSiswa = function() {
+            window.showConfirm("Reset status login semua siswa? (Siswa yang sedang aktif akan diminta login ulang jika halamannya tertutup)", () => {
+                window.appData.peserta.forEach(p => p.status_login = 'OFFLINE');
+                window.saveLocalData('peserta');
+                window.loadHadirDanGabung();
+            });
+        };
+
+        window.loadRuangDanKartu = function(tab = 'ruang') {
+            window.currentRoute = 'kartu'; 
+            window.currentRuangKartuTab = tab;
+            const container = document.getElementById('content-container');
+            
+            let tabContent = '';
+            
+            if (tab === 'ruang') {
+                const ruangan = [...new Set(window.appData.peserta.map(p => p.ruang).filter(Boolean))].sort();
+                let ruangOpts = `<option value="semua">Semua Ruang</option>`;
+                if(ruangan.length === 0) {
+                    ruangOpts = `<option value="">Belum ada ruang diatur</option>`;
+                } else {
+                    ruangOpts += ruangan.map(r => `<option value="${r}">${r}</option>`).join('');
+                }
+                
+                tabContent = `
+                    <div class="glass-card-dark p-6 rounded-3xl border border-slate-800 max-w-2xl space-y-4 mt-4">
+                        <div class="grid grid-cols-1 gap-4">
+                            <div>
+                                <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pilih Ruang Ujian</label>
+                                <select id="rk-ruang" class="w-full p-2.5 glass-input rounded-xl text-[11px] bg-slate-900">
+                                    ${ruangOpts}
+                                </select>
+                                <p class="text-[9px] text-slate-500 mt-2 font-medium"><i class="fa-solid fa-circle-info mr-1"></i>Atur ruangan siswa melalui menu <b>Data Siswa</b> (Ceklis Siswa ➔ Klik tombol <b>Set Ruang</b>)</p>
+                            </div>
                         </div>
+                        <button onclick="window.cetakDaftarRuangView()" class="w-full py-2.5 mt-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-[10px] uppercase tracking-wider shadow-lg"><i class="fa-solid fa-print mr-2"></i> Cetak Daftar Ruang (Tempel Pintu)</button>
                     </div>
-                    <div>
-                        <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Titimangsa (Tempat & Tanggal)</label>
-                        <input type="text" id="kt-tanggal" value="Pabedilan, 28 November 2026" class="w-full p-2.5 glass-input rounded-xl text-[11px] bg-slate-900">
+                `;
+            } else {
+                tabContent = `
+                    <div class="glass-card-dark p-6 rounded-3xl border border-slate-800 max-w-2xl space-y-4 mt-4">
+                        <div class="grid grid-cols-1 gap-4">
+                            <div>
+                                <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pilih Tingkat Kelas</label>
+                                <select id="kt-tingkat" class="w-full p-2.5 glass-input rounded-xl text-[11px] bg-slate-900">
+                                    <option value="semua">Semua Tingkat</option>
+                                    <option value="7">Kelas 7</option>
+                                    <option value="8">Kelas 8</option>
+                                    <option value="9">Kelas 9</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Titimangsa (Tempat & Tanggal)</label>
+                            <input type="text" id="kt-tanggal" value="Pabedilan, 28 November 2026" class="w-full p-2.5 glass-input rounded-xl text-[11px] bg-slate-900">
+                        </div>
+                        <button onclick="window.cetakKartuUjianView()" class="w-full py-2.5 mt-2 gradient-btn text-white font-bold rounded-xl text-[10px] uppercase tracking-wider shadow-lg"><i class="fa-solid fa-print mr-2"></i> Cetak Kartu Peserta</button>
                     </div>
-                    <button onclick="window.cetakKartuUjianView()" class="w-full py-2.5 mt-2 gradient-btn text-white font-bold rounded-xl text-[10px] uppercase tracking-wider shadow-lg"><i class="fa-solid fa-print mr-2"></i> Cetak Kartu Peserta</button>
+                `;
+            }
+
+            container.innerHTML = `
+                <div class="mb-6"><h1 class="text-2xl font-black text-white font-heading tracking-tight">Ruang & Kartu</h1><p class="text-[11px] text-slate-400 mt-1 tracking-wide">Cetak daftar pintu ruang dan kartu peserta ujian.</p></div>
+                
+                <div class="flex gap-2 mb-2 text-[11px] font-bold">
+                    <button onclick="window.loadRuangDanKartu('ruang')" class="px-4 py-2 rounded-lg tracking-wider text-[10px] transition ${tab==='ruang'?'bg-indigo-600 text-white shadow-lg':'bg-slate-900 text-slate-400 hover:text-white'}">Daftar Ruang</button>
+                    <button onclick="window.loadRuangDanKartu('kartu')" class="px-4 py-2 rounded-lg tracking-wider text-[10px] transition ${tab==='kartu'?'bg-indigo-600 text-white shadow-lg':'bg-slate-900 text-slate-400 hover:text-white'}">Kartu Peserta</button>
                 </div>
+                ${tabContent}
             `;
+        };
+
+        window.cetakDaftarRuangView = function() {
+            const ruangFilter = document.getElementById('rk-ruang').value;
+            let list = window.appData.peserta;
+            
+            let targetRuangan = [];
+            if (ruangFilter === 'semua') {
+                targetRuangan = [...new Set(list.map(p => p.ruang).filter(Boolean))].sort();
+            } else if (ruangFilter) {
+                targetRuangan = [ruangFilter];
+            }
+            
+            if (targetRuangan.length === 0 || list.length === 0) return window.showNotification("Data ruang kosong. Set ruang siswa terlebih dahulu di menu Data Siswa!");
+
+            let htmlPages = '';
+            targetRuangan.forEach(ruang => {
+                let pList = list.filter(p => p.ruang === ruang);
+                
+                // Urutkan berdasarkan kelas, lalu nama (agar rapi)
+                pList.sort((a,b) => {
+                    if (a.kelas === b.kelas) return a.nama.localeCompare(b.nama);
+                    return a.kelas.localeCompare(b.kelas);
+                });
+                
+                if(pList.length === 0) return;
+                
+                let tbody = '';
+                pList.forEach((s, idx) => {
+                    tbody += `<tr>
+                        <td style="padding:8px; text-align:center; border:1px solid #000;">${idx+1}</td>
+                        <td style="padding:8px; text-align:center; font-family:monospace; border:1px solid #000;">${s.username}</td>
+                        <td style="padding:8px; border:1px solid #000;">${s.nama}</td>
+                        <td style="padding:8px; text-align:center; border:1px solid #000;">${s.kelas}</td>
+                        <td style="padding:8px; border:1px solid #000;"></td>
+                    </tr>`;
+                });
+                
+                htmlPages += `
+                <div style="page-break-after: always; padding: 20px;">
+                    <div style="text-align:center; font-weight:bold; font-size:18px; margin-bottom:5px; text-decoration:underline;">DAFTAR PESERTA UJIAN</div>
+                    <div style="text-align:center; font-weight:bold; font-size:14px; margin-bottom:20px;">(TEMPEL PINTU / MEJA)</div>
+                    <div style="margin-bottom: 10px; font-size: 14px;"><strong>Ruang : ${ruang}</strong></div>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px; border: 1px solid #000;">
+                        <thead>
+                            <tr style="background:#f0f0f0;">
+                                <th style="padding:10px; width:5%; border:1px solid #000;">No</th>
+                                <th style="padding:10px; width:20%; border:1px solid #000;">Username / No Peserta</th>
+                                <th style="padding:10px; width:45%; border:1px solid #000;">Nama Siswa</th>
+                                <th style="padding:10px; width:10%; border:1px solid #000;">Kelas Asal</th>
+                                <th style="padding:10px; width:20%; border:1px solid #000;">Keterangan</th>
+                            </tr>
+                        </thead>
+                        <tbody>${tbody}</tbody>
+                    </table>
+                </div>`;
+            });
+            
+            const w = window.open('','_blank');
+            w.document.write(`<html><head><title>Daftar Ruang</title></head><body style="font-family:Arial,sans-serif;">${htmlPages}<script>setTimeout(()=>window.print(),500);<\/script></body></html>`);
+            w.document.close();
         };
 
         window.cetakKartuUjianView = function() {
@@ -1259,7 +1458,7 @@
                             <div class="card-body">
                                 <table class="content-table">
                                     <tr><td class="label">Nama</td><td class="colon">:</td><td class="val" style="font-family: Arial, sans-serif;">${s.nama}</td></tr>
-                                    <tr><td class="label">Kelas</td><td class="colon">:</td><td class="val">${s.kelas}</td></tr>
+                                    <tr><td class="label">Kelas / Ruang</td><td class="colon">:</td><td class="val">${s.kelas} / ${s.ruang || '-'}</td></tr>
                                     <tr><td class="label">Username</td><td class="colon">:</td><td class="val">${s.username}</td></tr>
                                     <tr><td class="label">Password</td><td class="colon">:</td><td class="val">${s.password || 'A7K9M2'}</td></tr>
                                 </table>
@@ -2027,8 +2226,18 @@
 
             let html = `<div class="max-w-xl mx-auto space-y-6 mt-12"><div class="glass-card-dark p-8 rounded-3xl border border-slate-800 text-center"><h2 class="text-2xl font-bold text-white mb-2 font-heading tracking-tight">Pilih Ujian</h2><p class="text-[11px] text-slate-400 mb-6">Halo, <b class="text-indigo-300 uppercase tracking-widest">${window.currentUser.nama}</b></p><div class="space-y-3 text-left">`;
             if(jadwalAktif.length === 0) { html += `<div class="p-4 bg-slate-900 rounded-2xl text-center text-slate-400 text-[11px]">Belum ada jadwal aktif untuk kelas Anda saat ini.</div>`; } 
-            else { jadwalAktif.forEach(j => { html += `<button onclick="window.proceedToConfirmation('${j.mapel}', this)" class="w-full flex justify-between p-4 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-slate-800 transition"><span class="font-bold text-white text-[11px] tracking-wide">${j.mapel}</span><span class="text-[10px] text-indigo-400 font-bold uppercase tracking-widest">Mulai <i class="fa-solid fa-arrow-right ml-1"></i></span></button>`; }); }
-            html += `</div><div class="mt-6"><button onclick="window.handleLogout()" class="px-5 py-2 bg-slate-800 text-slate-300 rounded-xl text-[10px] font-bold uppercase hover:bg-slate-700 tracking-wider transition">Keluar Akun</button></div></div></div>`;
+            else { 
+                jadwalAktif.forEach(j => { 
+                    const isFinished = window.appData.hasil.some(h => h.nama === window.currentUser.nama && h.kelas === window.currentUser.kelas && h.mapel === j.mapel);
+                    
+                    if (isFinished) {
+                        html += `<div class="w-full flex justify-between items-center p-4 rounded-2xl bg-emerald-900/20 border border-emerald-800/40 cursor-not-allowed"><span class="font-bold text-slate-300 text-[11px] tracking-wide">${j.mapel}</span><span class="text-[10px] text-emerald-500 font-bold uppercase tracking-widest"><i class="fa-solid fa-check-circle mr-1"></i> Selesai</span></div>`;
+                    } else {
+                        html += `<button onclick="window.proceedToConfirmation('${j.mapel}', this)" class="w-full flex justify-between p-4 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-slate-800 transition shadow"><span class="font-bold text-white text-[11px] tracking-wide">${j.mapel}</span><span class="text-[10px] text-indigo-400 font-bold uppercase tracking-widest">Mulai <i class="fa-solid fa-arrow-right ml-1"></i></span></button>`; 
+                    }
+                }); 
+            }
+            html += `</div><div class="mt-6"><button onclick="window.handleLogout()" class="px-5 py-2 bg-slate-800 text-slate-300 rounded-xl text-[10px] font-bold uppercase hover:bg-slate-700 tracking-wider transition shadow-md">Keluar Akun</button></div></div></div>`;
             container.innerHTML = html;
         };
 
@@ -2041,6 +2250,15 @@
 
         window.mulaiKerjakanUjian = function(btn) {
             btn.disabled = true; 
+            
+            // Kunci ganda: Cek sekali lagi apakah nilai sudah masuk
+            const isFinished = window.appData.hasil.some(h => h.nama === window.currentUser.nama && h.kelas === window.currentUser.kelas && h.mapel === window.currentUser.mapel);
+            if (isFinished) {
+                window.showNotification("⚠️ Anda sudah menyelesaikan ujian ini!");
+                window.loadSiswaSelectMapelView();
+                return;
+            }
+
             const soalList = window.appData.soal.filter(s => String(s.tingkat) === String(window.currentUser.tingkat) && s.mapel === window.currentUser.mapel);
             if (!soalList || soalList.length === 0) { window.showNotification("Soal belum tersedia!"); btn.disabled = false; return; }
             
