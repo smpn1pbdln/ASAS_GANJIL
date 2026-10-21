@@ -392,6 +392,7 @@
 
             const selectRuang = document.getElementById('pengawas-ruang');
             if (selectRuang) selectRuang.innerHTML = window.populateRuangOptions();
+            window.populatePengawasOptions();
 
             document.getElementById('loading-overlay').classList.add('hidden');
             window.updateLogoDisplay();
@@ -490,6 +491,23 @@
             if (document.hidden) window.registerViolation('beralih aplikasi/tab');
             if (!document.hidden && window.isExamActive && wakeLock === null) window.requestWakeLock();
         });
+
+        /* Dropdown nama pengawas di halaman login: hanya pengawas AKTIF dari Data Pengawas (mode admin) */
+        window.populatePengawasOptions = function() {
+            const sel = document.getElementById('pengawas-nama'); if (!sel) return;
+            const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            const dipilih = sel.value;
+            const list = (window.appData.pengawas || []).filter(p => p && p.nama && p.aktif !== false)
+                .slice().sort((a, b) => String(a.nama).localeCompare(String(b.nama), 'id'));
+            sel.innerHTML = '<option value="">-- Pilih Nama Pengawas --</option>' + list.map(p => `<option value="${esc(String(p.nama).trim())}">${esc(String(p.nama).trim())}</option>`).join('');
+            if (dipilih && list.some(p => String(p.nama).trim() === dipilih)) sel.value = dipilih;
+        };
+        window.onPengawasDipilih = function() {
+            const n = document.getElementById('pengawas-nama').value;
+            const pg = (window.appData.pengawas || []).find(x => String(x.nama).trim() === n);
+            const r = document.getElementById('pengawas-ruang');
+            if (pg && pg.ruang && r && Array.from(r.options).some(o => o.value === pg.ruang)) r.value = pg.ruang;
+        };
 
         window.populateRuangOptions = function() {
             let options = ''; for (let i = 1; i <= 31; i++) { const r = 'Ruang ' + String(i).padStart(3, '0'); options += `<option value="${r}">${r}</option>`; }
@@ -673,6 +691,7 @@
             });
             document.getElementById(`tab-${role}-btn`).className = "py-2.5 rounded-xl transition-all bg-indigo-600 text-white shadow-lg font-bold uppercase tracking-wider text-[10px] ring-1 ring-indigo-400/50";
             document.getElementById(`${role}-login-form`)?.classList.remove('hidden');
+            if (role === 'pengawas') { window.populatePengawasOptions(); if (window.pullCloud) window.pullCloud(['pengawas']).then(() => window.populatePengawasOptions()).catch(() => {}); }
         }
 
         window.handleSiswaLogin = async function(e) {
@@ -3267,11 +3286,11 @@
                         </div>
                     </div>
                     <button type="submit" class="w-full py-2.5 gradient-btn text-white font-black rounded-xl text-[10px] uppercase tracking-widest shadow-xl">Masuk Ujian</button>
-                    <div class="text-center pt-2"><span class="text-[10px] font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-pink-400 tracking-wide">Copyright @Tim_ayti_Panesa</span></div>
+                    <div class="text-center pt-2"><span class="text-[10px] font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-pink-400 tracking-wide">Copyright @yudh82</span></div>
                 </form>
 
                 <form id="pengawas-login-form" onsubmit="window.handlePengawasLogin(event)" class="space-y-4 text-left hidden">
-                    <div><label class="block text-[9px] font-bold text-slate-400 mb-1 uppercase tracking-widest">Nama</label><input type="text" id="pengawas-nama" required class="w-full px-4 py-3 rounded-xl glass-input text-[11px]" placeholder="Nama Pengawas"></div>
+                    <div><label class="block text-[9px] font-bold text-slate-400 mb-1 uppercase tracking-widest">Nama</label><select id="pengawas-nama" required onchange="window.onPengawasDipilih()" class="w-full px-4 py-3 rounded-xl glass-input text-[11px] bg-slate-900"><option value="">-- Pilih Nama Pengawas --</option></select></div>
                     <div><label class="block text-[9px] font-bold text-slate-400 mb-1 uppercase tracking-widest">Ruang</label><select id="pengawas-ruang" required class="w-full px-4 py-3 rounded-xl glass-input text-[11px] bg-slate-900"></select></div>
                     <div>
                         <label class="block text-[9px] font-bold text-slate-400 mb-1 uppercase tracking-widest">Password</label>
@@ -3281,7 +3300,7 @@
                         </div>
                     </div>
                     <button type="submit" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-[10px] uppercase tracking-widest shadow-xl transition">Masuk Dasbor</button>
-                    <div class="text-center pt-2"><span class="text-[10px] font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-pink-400 tracking-wide">Copyright @Tim_ayti_Panesa</span></div>
+                    <div class="text-center pt-2"><span class="text-[10px] font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-pink-400 tracking-wide">Copyright @yudh82</span></div>
                 </form>
 
                 <form id="admin-login-form" onsubmit="window.handleAdminLogin(event)" class="space-y-4 text-left hidden">
@@ -3294,7 +3313,7 @@
                         </div>
                     </div>
                     <button type="submit" class="w-full py-2.5 bg-pink-600 hover:bg-pink-500 text-white font-black rounded-xl text-[10px] uppercase tracking-widest shadow-xl transition">Akses Sistem</button>
-                    <div class="text-center pt-2"><span class="text-[10px] font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-pink-400 tracking-wide">Copyright @Tim_ayti_Panesa</span></div>
+                    <div class="text-center pt-2"><span class="text-[10px] font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-pink-400 tracking-wide">Copyright @yudh82</span></div>
                 </form>
             </div>
         </div>
