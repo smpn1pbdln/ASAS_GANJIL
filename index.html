@@ -1934,7 +1934,8 @@
             const tgl = window.dhTanggal || ('Senin, ' + window.pgTglHariIni());
             let list = (window.appData.pengawas || []).filter(p => p.aktif !== false);
             if (list.length === 0) return window.showNotification("Data pengawas kosong.");
-            list.sort((a, b) => a.nama.localeCompare(b.nama));
+            // urut berdasarkan ruang (Ruang 001 sampai Ruang 031); pengawas tanpa ruang di bagian akhir, lalu nama
+            list.sort((a, b) => String(a.ruang || '\uffff').localeCompare(String(b.ruang || '\uffff'), 'id', { numeric: true }) || String(a.nama || '').localeCompare(String(b.nama || ''), 'id'));
             
             let subtitle = `<div class="info-bar">Hari, Tanggal : ${tgl}</div>`;
             let thead = `<tr><th width="5%">No</th><th width="30%">Nama Pengawas</th><th width="20%">NIP</th><th width="15%">Ruang</th><th colspan="2" width="20%">Tanda Tangan</th><th width="10%">Ket.</th></tr>`;
