@@ -2519,7 +2519,7 @@
                             <div><label class="block text-[11px] font-bold text-slate-400 mb-1 tracking-wider uppercase">Tanggal</label><input type="text" id="ba-tanggal" value="${tglStr}" readonly class="w-full p-2.5 glass-input rounded-xl text-[11px] bg-slate-900/50 text-slate-300 cursor-not-allowed"></div>
                             <div><label class="block text-[11px] font-bold text-slate-400 mb-1 tracking-wider uppercase">Mapel</label><select id="ba-mapel" onchange="window.updateRuangBA()" class="w-full p-2.5 glass-input rounded-xl text-[11px] bg-slate-900">${window.listMapel.map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
                         </div>
-                        <div><label class="block text-[11px] font-bold text-slate-400 mb-1 tracking-wider uppercase">Ruang</label><select id="ba-ruang" required class="w-full p-2.5 glass-input rounded-xl text-[11px] bg-slate-900 font-bold"></select></div>
+                        <div><label class="block text-[11px] font-bold text-slate-400 mb-1 tracking-wider uppercase">Ruang</label><select id="ba-ruang" required onchange="window.renderSiswaAbsenList((document.getElementById('search-absen')||{}).value || '')" class="w-full p-2.5 glass-input rounded-xl text-[11px] bg-slate-900 font-bold"></select></div>
                         
                         <div class="grid grid-cols-4 gap-3 border-t border-slate-800 pt-4 mt-2">
                             <div><label class="block text-[10px] font-bold text-emerald-400 mb-1 tracking-wider uppercase text-center">Hadir</label><input type="number" id="ba-hadir" min="0" required class="w-full p-2.5 glass-input rounded-xl text-[12px] font-bold text-center"></div>
@@ -2548,17 +2548,24 @@
             setTimeout(() => { window.updateRuangBA(); window.initSignatureCanvas(); window.renderSiswaAbsenList(); }, 50);
         };
 
+        /* Daftar siswa tidak hadir: hanya siswa pada ruang yang dipilih; centang tetap tersimpan saat mencari */
+        window._absenSel = new Set(); window._absenRuang = null;
+        window.toggleAbsen = function(el) { if (el.checked) window._absenSel.add(el.value); else window._absenSel.delete(el.value); };
         window.renderSiswaAbsenList = function(filter = '') {
             const container = document.getElementById('list-siswa-absen'); if (!container) return;
-            const term = filter.toLowerCase(); let html = '';
-            window.appData.peserta.forEach(p => {
-                const label = `${p.nama} (${p.kelas})`;
+            const ruang = (document.getElementById('ba-ruang') || {}).value || '';
+            if (window._absenRuang !== ruang) { window._absenSel = new Set(); window._absenRuang = ruang; }
+            const term = String(filter || '').toLowerCase(), E = window.escHtml; let html = '';
+            const inRoom = window.appData.peserta.filter(p => ruang && p.ruang === ruang)
+                .sort((a, b) => String(a.kelas || '').localeCompare(String(b.kelas || ''), 'id', { numeric: true }) || String(a.nama || '').localeCompare(String(b.nama || ''), 'id'));
+            inRoom.forEach(p => {
+                const label = `${p.nama} (${p.kelas})`, val = `${p.nama} - ${p.kelas}`;
                 if (label.toLowerCase().includes(term)) {
-                    html += `<label class="flex items-center space-x-2 p-1.5 hover:bg-slate-800 rounded cursor-pointer transition border border-transparent hover:border-slate-700"><input type="checkbox" class="chk-absen w-3.5 h-3.5 accent-red-500 rounded cursor-pointer" value="${p.nama} - ${p.kelas}"><span class="text-[10px] text-slate-300 font-medium truncate">${label}</span></label>`;
+                    html += `<label class="flex items-center space-x-2 p-1.5 hover:bg-slate-800 rounded cursor-pointer transition border border-transparent hover:border-slate-700"><input type="checkbox" class="chk-absen w-3.5 h-3.5 accent-red-500 rounded cursor-pointer" value="${E(val)}" ${window._absenSel.has(val) ? 'checked' : ''} onchange="window.toggleAbsen(this)"><span class="text-[10px] text-slate-300 font-medium truncate">${E(label)}</span></label>`;
                 }
             });
-            container.innerHTML = html || '<div class="text-[10px] text-slate-500 p-2">Siswa tidak ditemukan...</div>';
-        }
+            container.innerHTML = html || (inRoom.length ? '<div class="text-[10px] text-slate-500 p-2">Siswa tidak ditemukan...</div>' : '<div class="text-[10px] text-slate-500 p-2">Belum ada siswa di ' + E(ruang || 'ruang ini') + '. Atur ruang siswa di menu Data Siswa.</div>');
+        };
 
         window.updateRuangBA = function() {
             const mapel = document.getElementById('ba-mapel').value;
@@ -2576,6 +2583,7 @@
                 options += `<option value="${r}" ${disabled} ${selected}>${label}</option>`;
             });
             selectRuang.innerHTML = options;
+            window.renderSiswaAbsenList((document.getElementById('search-absen') || {}).value || '');
         };
 
         window.initSignatureCanvas = function() {
@@ -2632,8 +2640,7 @@
             const izin = document.getElementById('ba-izin').value;
             const alpa = document.getElementById('ba-alpa').value;
 
-            const chks = document.querySelectorAll('.chk-absen:checked');
-            const siswa_absen = Array.from(chks).map(c => c.value).join(', ');
+            const siswa_absen = Array.from(window._absenSel).join(', ');
 
             const canvas = document.getElementById('signature-canvas');
             const ttdDataUrl = canvas.toDataURL('image/png');
@@ -2647,7 +2654,7 @@
             document.getElementById('ba-sakit').value = '0';
             document.getElementById('ba-izin').value = '0';
             document.getElementById('ba-alpa').value = '0';
-            document.querySelectorAll('.chk-absen').forEach(c => c.checked = false);
+            window._absenSel = new Set(); const sa = document.getElementById('search-absen'); if (sa) sa.value = '';
             window.clearSignature(); window.updateRuangBA();
         };
 
