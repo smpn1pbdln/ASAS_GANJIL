@@ -1575,6 +1575,19 @@
 
         /* ===== v9: Ekspor Data Pengawas (25/halaman) & Rekap Mengawas ===== */
         window.pgEsc = function(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function(c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); };
+        /* Hari, Tanggal untuk daftar hadir: hari ikut tanggal yang dipilih di kalender */
+        window.dhHariTanggal = function(d) {
+            const hari = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'], bln = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+            return `${hari[d.getDay()]}, ${d.getDate()} ${bln[d.getMonth()]} ${d.getFullYear()}`;
+        };
+        window.dhDefaultTanggal = function() { return window.dhHariTanggal(new Date()); };
+        window.isoHariIni = function() { const d = new Date(), p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); };
+        window.dhPilihTanggal = function(iso) {
+            const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); if (!m) return;
+            window.dhTglIso = iso;
+            window.dhTanggal = window.dhHariTanggal(new Date(+m[1], +m[2] - 1, +m[3]));
+            const el = document.getElementById('dh-tanggal'); if (el) el.value = window.dhTanggal;
+        };
         window.pgTglHariIni = function() { const b = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']; const d = new Date(); return `${d.getDate()} ${b[d.getMonth()]} ${d.getFullYear()}`; };
         window.pgTabsHtml = function(tab) {
             const on = 'bg-indigo-600 text-white shadow-lg', off = 'bg-slate-900 text-slate-400 hover:text-white';
@@ -1801,9 +1814,9 @@
                     <div class="space-y-4">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div><label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Ruang Ujian</label><select id="dh-ruang" class="w-full p-2.5 glass-input rounded-xl text-[11px] bg-slate-900"><option value="-">Semua Ruang</option>${window.populateRuangOptions()}</select></div>
-                            <div><label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Mata Pelajaran</label><select id="dh-mapel" class="w-full p-2.5 glass-input rounded-xl text-[11px] bg-slate-900">${window.listMapel.map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
+                            <div><label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Mata Pelajaran</label><select id="dh-mapel" onchange="window.dhMapel = this.value" class="w-full p-2.5 glass-input rounded-xl text-[11px] bg-slate-900">${window.listMapel.map(m=>`<option value="${m}"${window.dhMapel === m ? ' selected' : ''}>${m}</option>`).join('')}</select></div>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Hari, Tanggal</label><input type="text" id="dh-tanggal" value="${window.dhTanggal || ('Senin, ' + tglStr)}" oninput="window.dhTanggal = this.value" class="w-full p-2.5 glass-input rounded-xl text-[11px]"><p class="text-[9px] text-slate-500 mt-1 tracking-wide">Juga dipakai otomatis pada daftar hadir Pengawas &amp; Panitia.</p></div><div><label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Jam Ke</label><select id="dh-jam" onchange="window.dhJam = this.value" class="w-full p-2.5 glass-input rounded-xl text-[11px] bg-slate-900"><option value="1"${window.dhJam === '2' ? '' : ' selected'}>Jam ke-1</option><option value="2"${window.dhJam === '2' ? ' selected' : ''}>Jam ke-2</option></select></div></div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Hari, Tanggal</label><div class="flex gap-2"><input type="text" id="dh-tanggal" value="${window.dhTanggal || window.dhDefaultTanggal()}" oninput="window.dhTanggal = this.value" class="flex-1 min-w-0 p-2.5 glass-input rounded-xl text-[11px]"><input type="date" id="dh-kalender" value="${window.dhTglIso || window.isoHariIni()}" onchange="window.dhPilihTanggal(this.value)" title="Pilih dari kalender" class="shrink-0 w-36 p-2.5 glass-input rounded-xl text-[11px] bg-slate-900 cursor-pointer" style="color-scheme:dark"></div><p class="text-[9px] text-slate-500 mt-1 tracking-wide">Pilih dari kalender di samping atau ketik manual. Hari/tanggal dipakai otomatis pada daftar hadir Pengawas &amp; Panitia; Mata Pelajaran dan Jam Ke dipakai pada daftar hadir Pengawas.</p></div><div><label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Jam Ke</label><select id="dh-jam" onchange="window.dhJam = this.value" class="w-full p-2.5 glass-input rounded-xl text-[11px] bg-slate-900"><option value="1"${window.dhJam === '2' ? '' : ' selected'}>Jam ke-1</option><option value="2"${window.dhJam === '2' ? ' selected' : ''}>Jam ke-2</option></select></div></div>
                         <button onclick="window.cetakDaftarHadirPeserta()" class="w-full py-3 mt-2 gradient-btn text-white font-bold rounded-xl text-[10px] uppercase tracking-wider shadow-lg"><i class="fa-solid fa-print mr-2"></i> Cetak Daftar Hadir Peserta</button>
                     </div>
                 `;
@@ -1832,7 +1845,7 @@
             `;
         };
 
-        window.DH_COMPACT_CSS = 'table{margin-bottom:8px !important} th,td{padding:3px 6px !important} tbody td{line-height:1.2 !important;height:auto !important} tbody tr{height:auto !important;page-break-inside:avoid} thead{display:table-header-group} .info-bar{margin-bottom:8px !important} .subtitle{margin-bottom:8px !important} .signature-area{margin-top:10px !important} .sig-table td{height:auto !important;padding:2px 10px !important}';
+        window.DH_COMPACT_CSS = 'table{margin-bottom:8px !important} th{padding:9px 6px !important;line-height:1.3 !important} td{padding:0 6px !important} tbody td{height:8mm !important;line-height:1.2 !important;box-sizing:border-box} tbody tr{height:8mm !important;page-break-inside:avoid} thead{display:table-header-group} .info-bar{margin-bottom:8px !important} .subtitle{margin-bottom:8px !important} .signature-area{margin-top:10px !important} .sig-table td{height:auto !important;padding:2px 10px !important}';
         window.cetakDaftarHadirTemplate = function(title, subtitle, thead, tbody, tglStr, extraCss) {
             const w = window.open('', '_blank');
             w.document.write(`
@@ -1880,7 +1893,7 @@
                 <div class="kop-divider"></div>
                 <div class="title">${title}</div>
                 <div class="sas-title">SUMATIF AKHIR SEMESTER (SAS) GANJIL</div>
-                <div class="subtitle">Tahun Pelajaran ${window.globalSettings.tahunPelajaran}</div>
+                <div class="subtitle" style="text-transform:uppercase">Tahun Pelajaran ${window.globalSettings.tahunPelajaran}</div>
                 ${subtitle}
                 <table>
                     <thead>${thead}</thead>
@@ -1915,9 +1928,9 @@
             if (list.length === 0) return window.showNotification("Data siswa kosong untuk ruang ini.");
             list.sort((a, b) => a.nama.localeCompare(b.nama));
             
-            let subtitle = `<table style="border:none; margin-bottom:15px; font-size:12px; font-weight:normal; width:100%;">
-                <tr><td style="border:none; padding:2px; width:15%;">Mata Pelajaran</td><td style="border:none; padding:2px; width:2%;">:</td><td style="border:none; padding:2px;">${mp}</td><td style="border:none; padding:2px; width:15%; text-align:right;">Ruang</td><td style="border:none; padding:2px; width:2%;">:</td><td style="border:none; padding:2px; width:20%;">${rg === '-' ? 'Semua Ruang' : rg}</td></tr>
-                <tr><td style="border:none; padding:2px;">Hari, Tanggal</td><td style="border:none; padding:2px;">:</td><td style="border:none; padding:2px;">${tgl}</td><td style="border:none; padding:2px; text-align:right;">Jam Ke</td><td style="border:none; padding:2px;">:</td><td style="border:none; padding:2px;">${jam}</td></tr>
+            let subtitle = `<table style="border:none; margin-bottom:10px; font-size:12px; font-weight:normal; width:100%; line-height:1;">
+                <tr><td style="border:none; padding:1px 2px; width:15%;">Mata Pelajaran</td><td style="border:none; padding:1px 2px; width:2%;">:</td><td style="border:none; padding:1px 2px;">${mp}</td><td style="border:none; padding:1px 2px; width:15%; text-align:right;">Ruang</td><td style="border:none; padding:1px 2px; width:2%;">:</td><td style="border:none; padding:1px 2px; width:20%;">${rg === '-' ? 'Semua Ruang' : rg}</td></tr>
+                <tr><td style="border:none; padding:1px 2px;">Hari, Tanggal</td><td style="border:none; padding:1px 2px;">:</td><td style="border:none; padding:1px 2px;">${tgl}</td><td style="border:none; padding:1px 2px; text-align:right;">Jam Ke</td><td style="border:none; padding:1px 2px;">:</td><td style="border:none; padding:1px 2px;">${jam}</td></tr>
             </table>`;
             
             let thead = `<tr><th width="5%">No</th><th width="15%">No. Peserta</th><th>Nama Lengkap</th><th colspan="2" width="25%">Tanda Tangan</th><th width="15%">Keterangan</th></tr>`;
@@ -1931,13 +1944,17 @@
         };
 
         window.cetakDaftarHadirPengawas = function() {
-            const tgl = window.dhTanggal || ('Senin, ' + window.pgTglHariIni());
+            const tgl = window.dhTanggal || window.dhDefaultTanggal();
             let list = (window.appData.pengawas || []).filter(p => p.aktif !== false);
             if (list.length === 0) return window.showNotification("Data pengawas kosong.");
             // urut berdasarkan ruang (Ruang 001 sampai Ruang 031); pengawas tanpa ruang di bagian akhir, lalu nama
             list.sort((a, b) => String(a.ruang || '\uffff').localeCompare(String(b.ruang || '\uffff'), 'id', { numeric: true }) || String(a.nama || '').localeCompare(String(b.nama || ''), 'id'));
             
-            let subtitle = `<div class="info-bar">Hari, Tanggal : ${tgl}</div>`;
+            const mp = window.dhMapel || ((window.listMapel || [])[0]) || '-', jam = window.dhJam === '2' ? '2' : '1';
+            let subtitle = `<table style="border:none; margin-bottom:10px; font-size:12px; font-weight:normal; width:100%; line-height:1;">
+                <tr><td style="border:none; padding:1px 2px; width:15%;">Mata Pelajaran</td><td style="border:none; padding:1px 2px; width:2%;">:</td><td style="border:none; padding:1px 2px;">${mp}</td><td style="border:none; padding:1px 2px; width:15%; text-align:right;">Jam Ke</td><td style="border:none; padding:1px 2px; width:2%;">:</td><td style="border:none; padding:1px 2px; width:20%;">${jam}</td></tr>
+                <tr><td style="border:none; padding:1px 2px;">Hari, Tanggal</td><td style="border:none; padding:1px 2px;">:</td><td style="border:none; padding:1px 2px;" colspan="4">${tgl}</td></tr>
+            </table>`;
             let thead = `<tr><th width="5%">No</th><th width="30%">Nama Pengawas</th><th width="20%">NIP</th><th width="15%">Ruang</th><th colspan="2" width="20%">Tanda Tangan</th><th width="10%">Ket.</th></tr>`;
             let tbody = '';
             list.forEach((p, i) => {
@@ -1949,7 +1966,7 @@
         };
 
         window.cetakDaftarHadirPanitia = function() {
-            const tgl = window.dhTanggal || ('Senin, ' + window.pgTglHariIni());
+            const tgl = window.dhTanggal || window.dhDefaultTanggal();
             let subtitle = `<div class="info-bar">Hari, Tanggal : ${tgl}</div>`;
             let thead = `<tr><th width="7%">No</th><th width="34%">Nama Panitia</th><th width="20%">Jabatan</th><th colspan="2" width="29%">Tanda Tangan</th><th width="10%">Keterangan</th></tr>`;
             let tbody = '';
@@ -3024,9 +3041,9 @@
                     .subtitle { text-align: center; font-size: 12pt; font-weight: normal; margin-bottom: 20px; }
                     ol { margin-top: 10px; padding-left: 25px; font-size: 12pt; } 
                     li { margin-bottom: 8px; text-align: justify; font-size: 12pt; } 
-                    .signature-area { margin-top: 50px; width: 100%; font-size: 14px; } 
+                    .signature-area { margin-top: 30px; width: 100%; font-size: 14px; } 
                     .sig-table { width: 100%; text-align: center; border-collapse: collapse; } 
-                    .sig-table td { padding: 10px; vertical-align: bottom; height: 120px; border: none; } 
+                    .sig-table td { padding: 4px 10px; vertical-align: top; height: auto; border: none; line-height: 1.4; } 
                     .sig-name { font-weight: bold; text-decoration: underline; } 
                     @media print { body { padding: 0; } }
                 
@@ -3044,19 +3061,18 @@
                 </div>
                 
                 <div class="title">${titleText}</div>
-                <div class="subtitle">Tahun Pelajaran ${window.globalSettings.tahunPelajaran}</div>
+                <div class="subtitle" style="text-transform:uppercase">Tahun Pelajaran ${window.globalSettings.tahunPelajaran}</div>
                 
                 ${contentList}
                 
                 <div class="signature-area">
-                    <div style="text-align: right; margin-bottom: 25px; padding-right: 20px;">Pabedilan, ${tglStr}</div>
                     <table class="sig-table">
                         <tr>
-                            <td style="width: 50%;">Ketua Panitia,<br><br><br><br><br><span class="sig-name">${window.globalSettings.namaPanitia}</span><br>NIP. ${window.globalSettings.nipPanitia}</td>
-                            <td style="width: 50%;">Sekretaris,<br><br><br><br><br><span class="sig-name">${window.globalSettings.namaSekretaris}</span><br>NIP. ${window.globalSettings.nipSekretaris}</td>
+                            <td style="width: 50%;">&nbsp;<br>Ketua Panitia,<br><br><br><br><span class="sig-name">${window.globalSettings.namaPanitia}</span><br>NIP. ${window.globalSettings.nipPanitia}</td>
+                            <td style="width: 50%;">Pabedilan, ${tglStr}<br>Sekretaris,<br><br><br><br><span class="sig-name">${window.globalSettings.namaSekretaris}</span><br>NIP. ${window.globalSettings.nipSekretaris}</td>
                         </tr>
                         <tr>
-                            <td colspan="2" style="padding-top: 40px;">Mengetahui,<br>Kepala Sekolah<br><br><br><br><br><span class="sig-name">${window.globalSettings.namaKasek}</span><br>NIP. ${window.globalSettings.nipKasek}</td>
+                            <td colspan="2" style="padding-top: 14px;">Mengetahui,<br>Kepala Sekolah<br><br><br><br><span class="sig-name">${window.globalSettings.namaKasek}</span><br>NIP. ${window.globalSettings.nipKasek}</td>
                         </tr>
                     </table>
                 </div>
